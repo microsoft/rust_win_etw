@@ -128,6 +128,7 @@ test_case! {
             fn arg_usize(a: usize);
             fn arg_isize(a: isize);
 
+            fn arg_slice_bool(a: &[bool]);
             fn arg_slice_u8(a: &[u8]);
             fn arg_slice_u16(a: &[u16]);
             fn arg_slice_u32(a: &[u32]);

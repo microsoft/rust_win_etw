@@ -130,6 +130,7 @@ macro_rules! well_known_types {
 }
 
 well_known_types! {
+    bool;
     u8; u16; u32; u64;
     i8; i16; i32; i64;
     f32; f64;

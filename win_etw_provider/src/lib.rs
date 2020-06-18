@@ -8,15 +8,24 @@
 
 mod guid;
 mod provider;
-mod types;
 
+pub mod types;
+
+#[doc(inline)]
 pub use guid::GUID;
+
+#[doc(inline)]
 pub use provider::*;
+
+#[doc(hidden)]
 pub use types::*;
 
+#[doc(hidden)]
 pub use win_etw_metadata as metadata;
+
 mod data_descriptor;
 
+#[doc(inline)]
 pub use data_descriptor::EventDataDescriptor;
 
 /// Errors returned by `win_etw_provider` functions.

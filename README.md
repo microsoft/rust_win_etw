@@ -88,8 +88,12 @@ call into ETW to report the event, but there is no guarantee that the event is s
 forwarded; events can be dropped if event buffer resources are scarce.
 
 ```rust
-my_app_events.client_connected(&"192.168.0.42:6667".parse(), false, 100, "OK");
+my_app_events.client_connected(None, &"192.168.0.42:6667".parse(), false, 100, "OK");
 ```
+
+Note that all generated event methods have an added first parameters,
+`options: Option<&EventOptions>`. This parameter allows you to override per-event parameters,
+such as the event level and event correlation IDs. In most cases, you should pass `None`.
 
 # Supported field types
 Only a limited set of field types are supported.
@@ -98,8 +102,7 @@ Only a limited set of field types are supported.
 * Floating point primitives: `f32`, `f64`
 * Architecture-dependent sizes: `usize`, `isize`.
 * Boolean: `bool`
-* Slices of all of the supported primitives, except for bool: `&[u8]`, `&[u16]`, etc.
-  `&[bool]` is not supported because `bool` does not have a guaranteed stable representation.
+* Slices of all of the supported primitives: `&[u8]`, `&[u16]`, etc.
 * Windows `[FILETIME](https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-filetime)`.
   The type must be declared _exactly_ as `FILETIME`; type aliases or fully-qualified paths
   (such as `winapi::shared::minwindef::FILETIME`) _will not work_. The parameter type in the
@@ -133,6 +136,10 @@ These tools can also be used to capture ETW events:
 * [Tracelog](https://docs.microsoft.com/en-us/windows-hardware/drivers/devtest/tracelog)
 
 There are other tools, such as the Windows Performance Recorder, which can capture ETW events.
+
+# Ideas for improvement
+
+* Better handling of per-event overrides, rather than using `Option<&EventOptions>`.
 
 # References
 

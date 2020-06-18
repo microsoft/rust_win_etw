@@ -778,9 +778,9 @@ fn parse_event_field(
                 statements.extend(quote! {
                     let #field_desc: EventDataDescriptor;
                     let #field_len: u16;
-                    let #field_u16cstring: ::widestring::U16CString;
-                    let #field_u16cstr: &::widestring::U16CStr;
-                    match ::widestring::U16CString::from_os_str(#field_name) {
+                    let #field_u16cstring: ::win_etw_provider::types::U16CString;
+                    let #field_u16cstr: &::win_etw_provider::types::U16CStr;
+                    match ::win_etw_provider::types::U16CString::from_os_str(#field_name) {
                         Ok(s) => {
                             #field_u16cstring = s;
                             #field_u16cstr = #field_u16cstring.as_ref();
