@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "examples/hello_world",
+    "win_etw_logger",
+    "win_etw_macros",
+    "win_etw_metadata",
+    "win_etw_provider"
+]
