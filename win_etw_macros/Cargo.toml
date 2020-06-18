@@ -1,11 +1,11 @@
 [package]
 name = "win_etw_macros"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2018"
 description = "Enables apps to report events to Event Tracing for Windows (ETW)."
 license = "Apache-2.0 OR MIT"
-homepage = "https://github.com/sivadeilra/win_etw"
+homepage = "https://github.com/microsoft/rust_win_etw"
 
 [lib]
 proc-macro = true
@@ -16,5 +16,5 @@ proc-macro = true
 proc-macro2 = "^1.0"
 syn = { version = "^1.0", features = ["full", "extra-traits"] }
 quote = "^1.0"
-win_etw_metadata = { version = "^0.1.0", path = "../win_etw_metadata" }
+win_etw_metadata = { version = "^0.1.1", path = "../win_etw_metadata" }
 uuid = { version = "^0.8" }

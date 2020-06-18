@@ -1,11 +1,11 @@
 [package]
 name = "win_etw_metadata"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2018"
 description = "Provides metadata definitions for the win_etw_provider and win_etw_macros crates."
 license = "Apache-2.0 OR MIT"
-homepage = "https://github.com/sivadeilra/win_etw"
+homepage = "https://github.com/microsoft/rust_win_etw"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
