@@ -103,7 +103,7 @@ Only a limited set of field types are supported.
 * Architecture-dependent sizes: `usize`, `isize`.
 * Boolean: `bool`
 * Slices of all of the supported primitives: `&[u8]`, `&[u16]`, etc.
-* Windows `[FILETIME](https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-filetime)`.
+* Windows [`FILETIME`](https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-filetime).
   The type must be declared _exactly_ as `FILETIME`; type aliases or fully-qualified paths
   (such as `winapi::shared::minwindef::FILETIME`) _will not work_. The parameter type in the
   generated code will be `win_etw_provider::FILETIME`, which is a newtype over `u64`.
