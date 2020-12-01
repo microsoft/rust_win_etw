@@ -44,7 +44,7 @@ pub enum Error {
 pub struct EventOptions {
     /// Overrides the level of the event, if present. Each event method has a default, which can be
     /// specified using (for example) `#[event(level = "warn")]`. If the event declaration does not
-    /// specify a level, then the level will be `Level::INFO`.
+    /// specify a level, then the level will be `Level::VERBOSE`.
     pub level: Option<win_etw_metadata::Level>,
 
     /// Specifies the activity ID of this event.

@@ -1112,7 +1112,7 @@ fn parse_event_attributes(
     method_ident: &Ident,
     input_method_attrs: &[syn::Attribute],
 ) -> EventAttributes {
-    let mut level: Expr = parse_quote!(::win_etw_provider::Level::INFO);
+    let mut level: Expr = parse_quote!(::win_etw_provider::Level::VERBOSE);
     let mut opcode: Expr = parse_quote!(0);
     let mut task: Expr = parse_quote!(0);
 
@@ -1148,7 +1148,7 @@ fn parse_event_attributes(
                                                 "verbose" => quote!(VERBOSE),
                                                 _ => {
                                                     errors.push(Error::new_spanned(item, "The value specified for 'level' is not a valid string."));
-                                                    quote!(INFO)
+                                                    quote!(VERBOSE)
                                                 }
                                             };
                                             level = parse_quote!(::win_etw_provider::Level::#level_ident);
