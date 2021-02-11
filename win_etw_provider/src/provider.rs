@@ -176,14 +176,9 @@ impl Provider for EtwProvider {
 }
 
 #[inline(never)]
-fn write_failed(error: u32) {
-    #[cfg(feature = "std")]
-    {
-        println!("EventWrite failed: {}", error);
-    }
-    #[cfg(not(feature = "std"))]
-    {
-        let _ = error;
+fn write_failed(_error: u32) {
+    #[cfg(feature = "dev")] {
+        eprintln!("EventWrite failed: {}", _error);
     }
 }
 
@@ -204,12 +199,12 @@ mod win_support {
 
     /// See [PENABLECALLBACK](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nc-evntprov-penablecallback).
     pub(crate) unsafe extern "system" fn enable_callback(
-        source_id: *const winapi::shared::guiddef::GUID,
+        _source_id: *const winapi::shared::guiddef::GUID,
         is_enabled_code: u32,
         level: u8,
-        match_any_keyword: u64,
-        match_all_keyword: u64,
-        filter_data: *mut evntprov::EVENT_FILTER_DESCRIPTOR,
+        _match_any_keyword: u64,
+        _match_all_keyword: u64,
+        _filter_data: *mut evntprov::EVENT_FILTER_DESCRIPTOR,
         context: *mut winapi::ctypes::c_void,
     ) {
         // This should never happen.
@@ -218,28 +213,28 @@ mod win_support {
         }
         let stable_data: &StableProviderData = &*(context as *const _ as *const StableProviderData);
 
-        let source_id: GUID = if source_id.is_null() {
+        let _source_id: GUID = if _source_id.is_null() {
             GUID::default()
         } else {
-            (*(source_id as *const GUID)).clone()
+            (*(_source_id as *const GUID)).clone()
         };
-        if cfg!(feature = "dev") {
+        #[cfg(feature = "dev")] {
             eprintln!(
                 "enable_callback: source_id {} is_enabled {}, level {}, any {:#x} all {:#x} filter? {:?}",
-                source_id, is_enabled_code, level, match_any_keyword, match_all_keyword,
-                !filter_data.is_null()
+                _source_id, is_enabled_code, level, _match_any_keyword, _match_all_keyword,
+                !_filter_data.is_null()
             );
         }
 
         match is_enabled_code {
             evntrace::EVENT_CONTROL_CODE_ENABLE_PROVIDER => {
-                if cfg!(feature = "dev") {
+                #[cfg(feature = "dev")] {
                     eprintln!("ETW is ENABLING this provider.  setting level: {}", level);
                 }
                 stable_data.max_level.store(level, SeqCst);
             }
             evntrace::EVENT_CONTROL_CODE_DISABLE_PROVIDER => {
-                if cfg!(feature = "dev") {
+                #[cfg(feature = "dev")] {
                     eprintln!("ETW is DISABLING this provider.  setting level: {}", level);
                 }
                 stable_data.max_level.store(level, SeqCst);
@@ -247,13 +242,13 @@ mod win_support {
             evntrace::EVENT_CONTROL_CODE_CAPTURE_STATE => {
                 // ETW is requesting that the provider log its state information. The meaning of this
                 // is provider-dependent. Currently, this functionality is not exposed to Rust apps.
-                if cfg!(feature = "dev") {
+                #[cfg(feature = "dev")] {
                     eprintln!("EVENT_CONTROL_CODE_CAPTURE_STATE");
                 }
             }
             _ => {
                 // The control code is unrecognized.
-                if cfg!(feature = "dev") {
+                #[cfg(feature = "dev")] {
                     eprintln!(
                         "enable_callback: control code {} is not recognized",
                         is_enabled_code
@@ -316,7 +311,9 @@ impl EtwProvider {
                 if error != 0 {
                     Err(Error::WindowsError(error))
                 } else {
-                    eprintln!("register_provider_metadata: succeeded");
+                    #[cfg(feature = "dev")] {
+                        eprintln!("register_provider_metadata: succeeded");
+                    }
                     Ok(())
                 }
             }
