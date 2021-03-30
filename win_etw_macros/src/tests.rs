@@ -600,17 +600,6 @@ fn provider_attributes_valid_static() {
 fn check_errors(error: &Error, expected_errors: &[&str]) {
     let mut error_strings: Vec<String> = error.into_iter().map(|e| format!("{}", e)).collect();
 
-    let len_expected = expected_errors.len();
-    let len_actual = error_strings.len();
-
-    if len_expected != len_actual {
-        eprintln!(
-            "Number errors - Expected: {} Actual: {}",
-            &len_expected, &len_actual
-        );
-        panic!("Mismatched number of errors vs expected.");
-    }
-
     // Go through all the expected errors and ensure we find them in the output.
     for expected_error in expected_errors.iter() {
         let position = error_strings
