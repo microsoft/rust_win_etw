@@ -718,7 +718,7 @@ fn parse_event_field(
                             lit,
                             ..
                         })) => {
-                            if *path == parse_quote!(output) {
+                            if path.is_ident("output") {
                                 match &lit {
                                     Lit::Str(lit) => {
                                         let output_string = lit.value();
@@ -1026,7 +1026,7 @@ impl syn::parse::Parse for ProviderAttributes {
             errors.scope(item.span(), |scope| {
                 match item {
                     syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
-                        if *path == parse_quote!(guid) {
+                        if path.is_ident("guid") {
                             let s = if let syn::Lit::Str(s) = lit {
                                 s
                             } else {
@@ -1053,7 +1053,7 @@ impl syn::parse::Parse for ProviderAttributes {
                             } else {
                                 uuid_opt = Some(uuid);
                             }
-                        } else if *path == parse_quote!(name) {
+                        } else if path.is_ident("name") {
                             if let syn::Lit::Str(s) = lit {
                                 if provider_name.is_none() {
                                     provider_name = Some(s.value());
@@ -1067,7 +1067,7 @@ impl syn::parse::Parse for ProviderAttributes {
                             scope.msg("Unrecognized attribute key.");
                         }
                     }
-                    syn::Meta::Path(path) if *path == parse_quote!(static_mode) => {
+                    syn::Meta::Path(path) if path.is_ident("static_mode") => {
                         // eprintln!("Found 'static'");
                     }
                     _ => {
@@ -1181,7 +1181,7 @@ fn parse_event_attributes(
                                 lit,
                                 ..
                             })) => {
-                                if *path == parse_quote!(level) {
+                                if path.is_ident("level") {
                                     match lit {
                                         Lit::Str(lit_str) => {
                                             let level_ident = match lit_str.value().as_str() {
@@ -1204,17 +1204,17 @@ fn parse_event_attributes(
                                             errors.push(Error::new_spanned(item, "The value specified for 'level' is not recognized."));
                                         }
                                     }
-                                } else if *path == parse_quote!(opcode) {
+                                } else if path.is_ident("opcode") {
                                     opcode = Expr::Lit(ExprLit {
                                         lit: lit.clone(),
                                         attrs: Vec::new(),
                                     });
-                                } else if *path == parse_quote!(task) {
+                                } else if path.is_ident("task") {
                                     task = Expr::Lit(ExprLit {
                                         lit: lit.clone(),
                                         attrs: Vec::new(),
                                     });
-                                } else if *path == parse_quote!(id) {
+                                } else if path.is_ident("id") {
                                     if event_id.is_some() {
                                         errors.push(Error::new(
                                             lit.span(),
