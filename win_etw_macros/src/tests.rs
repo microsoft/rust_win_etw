@@ -77,6 +77,22 @@ fn test_worker(attrs: TokenStream, input: TokenStream, expected_errors: &[&'stat
             }
         }
     }
+
+    // Make sure all errors found in compilation is expected.
+    for error in errors.errors {
+        if expected_errors.iter().any(|e| {
+            // println!("checking in {:?}", e);
+            let s = String::from(*e);
+            error.contains(&s)
+        }) {
+            // println!("found expected error {:?}", expected_error);
+        } else {
+            panic!(
+                "Did not match error {:?} with expected error in list:\n{:#?}",
+                error, expected_errors
+            );
+        }
+    }
 }
 
 macro_rules! test_case {
@@ -199,7 +215,7 @@ test_case! {
     input: {
         #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
         trait Events {
-            fn event(&self) -> String;
+            fn event() -> String;
         }
     }
     expected_errors: [
@@ -213,7 +229,7 @@ test_case! {
     input: {
         #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
         trait Events {
-            fn event(&self) { }
+            fn event() { }
         }
     }
     expected_errors: [
@@ -227,7 +243,7 @@ test_case! {
     input: {
         #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
         trait Events {
-            fn event<T>(&self);
+            fn event<T>();
         }
     }
     expected_errors: [
@@ -241,7 +257,7 @@ test_case! {
     input: {
         #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
         trait Events {
-            fn event<'a>(&self);
+            fn event<'a>();
         }
     }
     expected_errors: [
@@ -312,6 +328,106 @@ test_case! {
     }
     expected_errors: [
         "The attribute value is required to be a GUID in string form.",
+        "Please generate a GUID that uniquely identfies this event provider",
+    ]
+}
+
+test_case! {
+    #[test]
+    fn test_all_event_ids();
+    input: {
+        #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
+        trait Events {
+            #[event(id = 1)]
+            fn event_one();
+
+            #[event(id = 2)]
+            fn event_two();
+        }
+    }
+    expected_errors: [
+    ]
+}
+
+test_case! {
+    #[test]
+    fn test_mixed_event_ids_fail();
+    input: {
+        #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
+        trait Events {
+            #[event(id = 1)]
+            fn event_one();
+
+            fn event_two();
+        }
+    }
+
+    expected_errors: [
+        "Event ids must be set for all events, or for none.",
+    ]
+}
+
+test_case! {
+    #[test]
+    fn test_duplicate_event_ids_fail();
+    input: {
+        #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
+        trait Events {
+            #[event(id = 1, id = 2)]
+            fn event_one();
+
+            #[event(id = 3)]
+            fn event_two();
+        }
+    }
+
+    expected_errors: [
+        "Event id has already been defined.",
+    ]
+}
+
+test_case! {
+        #[test]
+        fn test_single_repeated_event_ids_fail();
+        input: {
+            #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
+            trait Events {
+                #[event(id = 1)]
+                fn event_one();
+
+                #[event(id = 1)]
+                fn event_two();
+            }
+        }
+
+    expected_errors: [
+        "Event id 1 has already been defined on event_one.",
+    ]
+}
+
+test_case! {
+        #[test]
+        fn test_multiple_repeated_event_ids_fail();
+        input: {
+            #[trace_logging_provider(guid = "610259b8-9270-46f2-ad94-2f805721b287")]
+            trait Events {
+                #[event(id = 1)]
+                fn event_one();
+
+                #[event(id = 2)]
+                fn event_two();
+
+                #[event(id = 1)]
+                fn event_three();
+
+                #[event(id = 2)]
+                fn event_four();
+            }
+        }
+
+    expected_errors: [
+        "Event id 1 has already been defined on event_one.",
+        "Event id 2 has already been defined on event_two.",
     ]
 }
 
@@ -334,10 +450,10 @@ test_case! {
     #[test]
     fn test_invalid_event_attributes();
     input: {
-        #[trace_logging_provider()]
+        #[trace_logging_provider(guid = "00000000-0000-0000-0000-000000000001")]
         trait Events {
             #[event(bad_name = "bad_value")]
-            fn event(&self);
+            fn event();
         }
     }
     expected_errors: [
@@ -349,10 +465,10 @@ test_case! {
     #[test]
     fn test_event_attributes_others_forbidden();
     input: {
-        #[trace_logging_provider()]
+        #[trace_logging_provider(guid = "00000000-0000-0000-0000-000000000001")]
         trait Events {
             #[some_other_attribute]
-            fn event(&self);
+            fn event();
         }
     }
     expected_errors: [
@@ -369,6 +485,35 @@ test_case! {
     }
     expected_errors: [
         "The #[trace_logging_provider] attribute cannot be used with this kind of item.",
+    ]
+}
+
+test_case! {
+    #[test]
+    fn multiple_errors_detected();
+    input: {
+        #[trace_logging_provider()]
+        trait Events
+        {
+            #[some_other_attribute]
+            fn event_one();
+
+            #[event(id = 1)]
+            fn event_two();
+
+            #[event(id = 2)]
+            fn event_three();
+
+            #[event(id = 1)]
+            fn event_four();
+        }
+
+    }
+    expected_errors: [
+        "The only attributes allowed on event methods are #[doc] and #[event(...)] attributes.",
+        "Please generate a GUID that uniquely identfies this event provider.",
+        "Event ids must be set for all events, or for none.",
+        "Event id 1 has already been defined on event_two.",
     ]
 }
 
@@ -397,7 +542,10 @@ fn provider_attributes_invalid_meta() {
 fn provider_attributes_unrecognized_key() {
     test_provider_attributes_error(
         quote!(bad_name = "bad_value"),
-        &["Unrecognized attribute key."],
+        &[
+            "Unrecognized attribute key.",
+            "The 'guid' attribute is required.",
+        ],
     );
 }
 
@@ -450,9 +598,15 @@ fn provider_attributes_valid_static() {
 }
 
 fn check_errors(error: &Error, expected_errors: &[&str]) {
-    let error_strings: Vec<String> = error.into_iter().map(|e| format!("{}", e)).collect();
+    let mut error_strings: Vec<String> = error.into_iter().map(|e| format!("{}", e)).collect();
+
+    // Go through all the expected errors and ensure we find them in the output.
     for expected_error in expected_errors.iter() {
-        if error_strings.iter().any(|e| e.contains(expected_error)) {
+        let position = error_strings
+            .iter()
+            .position(|e| e.contains(expected_error));
+        if let Some(idx) = position {
+            error_strings.remove(idx);
             // good
         } else {
             eprintln!("\nDid not find this error in list: {:?}", expected_error);
@@ -462,5 +616,9 @@ fn check_errors(error: &Error, expected_errors: &[&str]) {
             }
             panic!("Error strings did not match.");
         }
+    }
+
+    for error_string in error_strings.iter() {
+        panic!("Unexpected error: {}", error_string);
     }
 }
