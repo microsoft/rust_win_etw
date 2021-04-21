@@ -68,10 +68,14 @@ impl EventDataDescriptor<'static> {
             phantom_ref: PhantomData,
         }
     }
+}
 
+const EVENT_DATA_DESCRIPTOR_TYPE_PROVIDER_METADATA: u32 = 2;
+const EVENT_DATA_DESCRIPTOR_TYPE_EVENT_METADATA: u32 = 1;
+
+impl<'a> EventDataDescriptor<'a> {
     /// Creates an `EventDataDescriptor` for provider metadata.
-    /// Provider metadata is required to have `'static` lifetime.
-    pub fn for_provider_metadata(s: &'static [u8]) -> Self {
+    pub fn for_provider_metadata(s: &'a [u8]) -> Self {
         Self {
             ptr: s.as_ptr() as usize as u64,
             size: s.len() as u32,
@@ -81,8 +85,7 @@ impl EventDataDescriptor<'static> {
     }
 
     /// Creates an `EventDataDescriptor` for the metadata that describes a single event.
-    /// Event metadata is required to have `'static` lifetime.
-    pub fn for_event_metadata(s: &'static [u8]) -> Self {
+    pub fn for_event_metadata(s: &'a [u8]) -> Self {
         Self {
             ptr: s.as_ptr() as usize as u64,
             size: s.len() as u32,
@@ -90,12 +93,7 @@ impl EventDataDescriptor<'static> {
             phantom_ref: PhantomData,
         }
     }
-}
 
-const EVENT_DATA_DESCRIPTOR_TYPE_PROVIDER_METADATA: u32 = 2;
-const EVENT_DATA_DESCRIPTOR_TYPE_EVENT_METADATA: u32 = 1;
-
-impl<'a> EventDataDescriptor<'a> {
     /// Creates a `EventDataDescriptor for a slice of bytes.
     pub fn for_bytes(s: &'a [u8]) -> Self {
         Self {
