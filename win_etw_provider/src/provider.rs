@@ -296,8 +296,8 @@ impl EtwProvider {
     /// See TraceLoggingRegisterEx in traceloggingprovider.h.
     /// This registers provider metadata.
     pub fn register_provider_metadata(
-        &mut self,
-        provider_metadata: &'static [u8],
+        &mut self, 
+        provider_metadata: &[u8],
     ) -> Result<(), Error> {
         #[cfg(target_os = "windows")]
         {
