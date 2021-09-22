@@ -107,6 +107,26 @@
 //! * `SockAddr`, `SockAddrV4`, and `SockAddrV6` are supported. They must be declared exactly as
 //!   shown, not using fully-qualified names or type aliases.
 //!
+//! # Provider groups
+//!
+//! When creating an ETW provider, you can place ETW providers into _provider groups_. A provider
+//! group can be enabled or disabled as a unit. To do so, specify the GUID of the provider group
+//! when declaring the ETW provider. For example:
+//!
+//! ```rust
+//! [trace_logging_provider(
+//!     guid = "...",                   // GUID of this provider
+//!     provider_group_guid = "..."     // GUID of the provider group that this provider belongs to
+//! )]
+//! pub trait MyEvents {
+//!     // ...
+//! }
+//! ```
+//!
+//! ## References
+//! * [TraceLoggingOptionGroup](https://docs.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-traceloggingoptiongroup)
+//! * [Provider Traits](https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits)
+//!
 //! # How to capture and view events
 //!
 //! There are a variety of tools which can be used to capture and view ETW events.
@@ -149,6 +169,7 @@ extern crate proc_macro;
 mod errors;
 mod well_known_types;
 
+use errors::{CombinedErrors, ErrorScope};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use std::{collections::HashMap, iter::Extend};
@@ -208,10 +229,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
     let wk = WellKnownTypes::new();
 
     let mut output = TokenStream::new();
-
-    // provider_mod_ident is a module that we generate that contains implementation details.
-    // It is not intended to be used directly by applications.
-    let provider_mod_ident: Ident = ident_suffix(provider_ident, "implementation");
 
     let mut event_descriptors: Vec<syn::Item> = Vec::new();
 
@@ -548,14 +565,55 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     // If the input item has doc attributes, then carry them over to the output type.
     let doc_path: syn::Path = parse_quote!(doc);
-    let provider_attrs = logging_trait
+    let provider_doc_attrs = logging_trait
         .attrs
         .iter()
         .filter(|a| a.path == doc_path)
         .collect::<Vec<_>>();
 
+    let mut register_traits: TokenStream = quote!();
+    if let Some(provider_group_guid) = &provider_attrs.provider_group_guid {
+        // Build a provider traits static item.
+        // See https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits
+
+        fn align2(v: &mut Vec<u8>) {
+            if v.len() % 2 != 0 {
+                v.push(0);
+            }
+        }
+
+        let mut traits_bytes: Vec<u8> = Vec::new();
+        traits_bytes.push(0); // reserve space for TraitsSize
+        traits_bytes.push(0);
+
+        traits_bytes.extend_from_slice(provider_ident_string.as_bytes());
+        traits_bytes.push(0);
+        align2(&mut traits_bytes);
+
+        // Add trait for provider guid
+        let provider_guid_trait_offset = traits_bytes.len();
+        traits_bytes.push(0); // reserve space for TraitSize
+        traits_bytes.push(0);
+        traits_bytes.push(ETW_PROVIDER_TRAIT_TYPE_GROUP);
+        traits_bytes.extend_from_slice(provider_group_guid.as_bytes());
+        let provider_guid_trait_len = traits_bytes.len() - provider_guid_trait_offset;
+        traits_bytes[provider_guid_trait_offset] = provider_guid_trait_len as u8;
+        traits_bytes[provider_guid_trait_offset + 1] = (provider_guid_trait_len >> 8) as u8;
+
+        // Set TraitsSize
+        traits_bytes[0] = traits_bytes.len() as u8;
+        traits_bytes[1] = (traits_bytes.len() >> 8) as u8;
+
+        let traits_bytes_len = traits_bytes.len();
+
+        register_traits.extend(quote! {
+            static PROVIDER_TRAITS: [u8; #traits_bytes_len] = [ #(#traits_bytes),* ];
+            let _ = provider.set_provider_traits(&PROVIDER_TRAITS);
+        });
+    }
+
     output.extend(quote! {
-        #( #provider_attrs )*
+        #( #provider_doc_attrs )*
         #vis struct #provider_ident {
             provider: ::core::option::Option<::win_etw_provider::EtwProvider>,
         }
@@ -577,7 +635,9 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                         #[cfg(target_os = "windows")]
                         {
                             let _ = provider.register_provider_metadata(&#provider_metadata_ident);
+                            #register_traits
                         }
+
                         Some(provider)
                     }
                     Err(_) => None,
@@ -615,17 +675,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         #[allow(non_snake_case)]
         impl #provider_ident {
             #provider_impl_items
-        }
-
-        #[doc(hidden)]
-        #[allow(non_snake_case)]
-        mod #provider_mod_ident {
-            /*
-            pub(crate) mod event_descriptors {
-                #![allow(non_upper_case_globals)]
-                #( #event_descriptors )*
-            }
-            */
         }
     });
 
@@ -1004,13 +1053,12 @@ fn parse_event_field(
     Ok(())
 }
 
-use errors::CombinedErrors;
-
 /// Represents the "attribute" parameter of the `#[trace_logging_provider]` proc macro.
 #[derive(Default, Debug)]
 struct ProviderAttributes {
     uuid: Uuid,
     provider_name: Option<String>,
+    provider_group_guid: Option<Uuid>,
 }
 
 impl syn::parse::Parse for ProviderAttributes {
@@ -1021,31 +1069,33 @@ impl syn::parse::Parse for ProviderAttributes {
         let items: syn::punctuated::Punctuated<syn::Meta, Token![,]> =
             stream.parse_terminated(syn::Meta::parse)?;
 
+        let mut provider_group_guid: Option<Uuid> = None;
+
+        let parse_guid_value = |lit: &Lit, scope: &mut ErrorScope| -> Uuid {
+            if let syn::Lit::Str(s) = lit {
+                let guid_str = s.value();
+                if let Ok(value) = guid_str.parse::<Uuid>() {
+                    if value == Uuid::nil() {
+                        scope.msg("The GUID cannot be the NIL (all-zeroes) GUID.");
+                    }
+                    value
+                } else {
+                    scope.msg("The attribute value is required to be a valid GUID.");
+                    Uuid::nil()
+                }
+            } else {
+                scope.msg("The attribute value is required to be a GUID in string form.");
+                Uuid::nil()
+            }
+        };
+
         let mut provider_name = None;
         for item in items.iter() {
             errors.scope(item.span(), |scope| {
                 match item {
                     syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
                         if path.is_ident("guid") {
-                            let s = if let syn::Lit::Str(s) = lit {
-                                s
-                            } else {
-                                scope.msg(
-                                    "The attribute value is required to be a GUID in string form.",
-                                );
-                                return Ok(());
-                            };
-
-                            let guid_str = s.value();
-                            let uuid = if let Ok(value) = guid_str.parse::<Uuid>() {
-                                if value == Uuid::nil() {
-                                    scope.msg("The GUID cannot be the NIL (all-zeroes) GUID.");
-                                }
-                                value
-                            } else {
-                                scope.msg("The attribute value is required to be a valid GUID.");
-                                Uuid::nil()
-                            };
+                            let uuid = parse_guid_value(lit, scope);
                             if uuid_opt.is_some() {
                                 scope.msg(
                                     "The 'guid' attribute key cannot be specified more than once.",
@@ -1062,6 +1112,13 @@ impl syn::parse::Parse for ProviderAttributes {
                                 }
                             } else {
                                 scope.msg("The 'name' attribute key requires a string value.");
+                            }
+                        } else if path.is_ident("provider_group_guid") {
+                            let uuid = parse_guid_value(lit, scope);
+                            if provider_group_guid.is_some() {
+                                scope.msg("The 'provider_group_guid' attribute key cannot be specified more than once.");
+                            } else {
+                                provider_group_guid = Some(uuid);
                             }
                         } else {
                             scope.msg("Unrecognized attribute key.");
@@ -1101,6 +1158,7 @@ Example: #[trace_logging_provider(guid = \"123e4567-e89b...\")]",
         errors.into_result(ProviderAttributes {
             uuid,
             provider_name,
+            provider_group_guid,
         })
     }
 }
@@ -1285,7 +1343,6 @@ fn parse_event_attributes(
     }
 }
 
-
 /// The separator we use to build dynamic identifiers, based on existing identifiers.
 /// Ideally, we would use a string that will not cause collisions with user-provided
 /// identifiers. Rust supports non-ASCII identifiers, which would allow us to
@@ -1304,3 +1361,5 @@ fn ident_suffix(ident: &Ident, suffix: &str) -> Ident {
         ident.span(),
     )
 }
+
+const ETW_PROVIDER_TRAIT_TYPE_GROUP: u8 = 1;

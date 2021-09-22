@@ -66,7 +66,10 @@ fn main() {
 }
 
 /// Hello, World, from ETW
-#[trace_logging_provider(guid = "861A3948-3B6B-4DDF-B862-B2CB361E238E")]
+#[trace_logging_provider(
+    guid = "861A3948-3B6B-4DDF-B862-B2CB361E238E",
+    provider_group_guid = "6aeb6059-444a-4606-a3ea-06fd00fe3378"
+)]
 trait HelloWorldProvider {
     fn hello(a: &str);
     fn arg_i32(a: i32);

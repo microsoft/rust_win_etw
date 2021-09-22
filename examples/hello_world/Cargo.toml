@@ -1,3 +1,5 @@
+# This package is not published.
+
 [package]
 name = "hello_world"
 version = "0.1.1"
@@ -7,11 +9,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-win_etw_macros = { version = "^0.1.1", path = "../../win_etw_macros" }
-win_etw_provider = { version = "^0.1.1", path = "../../win_etw_provider" }
+win_etw_macros = { path = "../../win_etw_macros" }
+win_etw_provider = { path = "../../win_etw_provider" }
 widestring = "^0.4"
 winapi = { version = "^0.3.8", features = ["ntstatus"] }
 
 [features]
 default = []
-negative_testing = []

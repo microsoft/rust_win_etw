@@ -51,6 +51,19 @@ impl syn::parse::Parse for CompileErrors {
 
 fn test_worker(attrs: TokenStream, input: TokenStream, expected_errors: &[&'static str]) {
     let output = trace_logging_events_core(attrs, input);
+    if std::env::var("WIN_ETW_SHOW_OUTPUT").is_ok() {
+        let output_str = format!("{}", output);
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+        let mut rustfmt_cmd = Command::new("rustfmt")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("rustfmt failed");
+        let mut child_stdin = rustfmt_cmd.stdin.take().unwrap();
+        child_stdin.write(output_str.as_bytes()).unwrap();
+        drop(child_stdin);
+        rustfmt_cmd.wait().unwrap();
+    }
 
     // Scan 'output' for errors.
     let errors: CompileErrors = syn::parse2(output).unwrap();
@@ -328,7 +341,6 @@ test_case! {
     }
     expected_errors: [
         "The attribute value is required to be a GUID in string form.",
-        "Please generate a GUID that uniquely identfies this event provider",
     ]
 }
 
@@ -514,6 +526,42 @@ test_case! {
         "Please generate a GUID that uniquely identfies this event provider.",
         "Event ids must be set for all events, or for none.",
         "Event id 1 has already been defined on event_two.",
+    ]
+}
+
+test_case! {
+    #[test]
+    fn provider_groups();
+    input: {
+        #[trace_logging_provider(
+            guid = "00000000-0000-0000-0000-000000000001",
+            provider_group_guid = "00000000-0000-0000-0000-000000000002",
+        )]
+        trait Events
+        {
+            fn foo();
+        }
+    }
+    expected_errors: [
+    ]
+}
+
+test_case! {
+    #[test]
+    fn provider_attributes_multiple_provider_groups();
+    input: {
+        #[trace_logging_provider(
+            guid = "00000000-0000-0000-0000-000000000001",
+            provider_group_guid = "00000000-0000-0000-0000-000000000002",
+            provider_group_guid = "00000000-0000-0000-0000-000000000003",
+        )]
+        trait Events
+        {
+            fn foo();
+        }
+    }
+    expected_errors: [
+        "The 'provider_group_guid' attribute key cannot be specified more than once.",
     ]
 }
 
