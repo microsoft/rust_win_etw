@@ -1,7 +1,5 @@
 use super::*;
 
-// use syn::{Ident, Token};
-
 struct CompileErrors {
     errors: Vec<String>,
 }
@@ -36,7 +34,6 @@ impl syn::parse::Parse for CompileErrors {
                 }
                 // Didn't recognize it.
                 if let Some((_ignored, next)) = c.token_tree() {
-                    // println!("ignoring: {:?}", ignored);
                     c = next;
                 } else {
                     println!("cursor is positioned on something that is not a token tree!");
