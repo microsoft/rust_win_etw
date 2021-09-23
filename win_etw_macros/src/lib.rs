@@ -185,6 +185,8 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::single_match)]
+#![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::vec_init_then_push)]
 
 extern crate proc_macro;
 
@@ -252,8 +254,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     let mut output = TokenStream::new();
 
-    // let mut event_descriptors: Vec<syn::Item> = Vec::new();
-
     let provider_metadata_ident = Ident::new(
         &format!("{}_PROVIDER_METADATA", provider_ident_string),
         provider_ident.span(),
@@ -268,7 +268,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             .as_ref()
             .unwrap_or(&provider_ident_string);
         output.extend(create_provider_metadata(
-            &provider_name,
+            provider_name,
             &provider_metadata_ident,
         ));
     }
@@ -401,7 +401,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                         &wk,
                         event_attr.as_ref(),
                         param_span,
-                        &param_name,
+                        param_name,
                         &mut *param_typed.ty,
                         &mut data_descriptor_array,
                         &mut event_metadata,
@@ -584,46 +584,12 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         .filter(|a| a.path == doc_path)
         .collect::<Vec<_>>();
 
-    let mut register_traits: TokenStream = quote!();
-    if let Some(provider_group_guid) = &provider_attrs.provider_group_guid {
-        // Build a provider traits static item.
-        // See https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits
-
-        fn align2(v: &mut Vec<u8>) {
-            if v.len() % 2 != 0 {
-                v.push(0);
-            }
-        }
-
-        let mut traits_bytes: Vec<u8> = Vec::new();
-        traits_bytes.push(0); // reserve space for TraitsSize
-        traits_bytes.push(0);
-
-        traits_bytes.extend_from_slice(provider_ident_string.as_bytes());
-        traits_bytes.push(0);
-        align2(&mut traits_bytes);
-
-        // Add trait for provider guid
-        let provider_guid_trait_offset = traits_bytes.len();
-        traits_bytes.push(0); // reserve space for TraitSize
-        traits_bytes.push(0);
-        traits_bytes.push(ETW_PROVIDER_TRAIT_TYPE_GROUP);
-        traits_bytes.extend_from_slice(provider_group_guid.as_bytes());
-        let provider_guid_trait_len = traits_bytes.len() - provider_guid_trait_offset;
-        traits_bytes[provider_guid_trait_offset] = provider_guid_trait_len as u8;
-        traits_bytes[provider_guid_trait_offset + 1] = (provider_guid_trait_len >> 8) as u8;
-
-        // Set TraitsSize
-        traits_bytes[0] = traits_bytes.len() as u8;
-        traits_bytes[1] = (traits_bytes.len() >> 8) as u8;
-
-        let traits_bytes_len = traits_bytes.len();
-
-        register_traits.extend(quote! {
-            static PROVIDER_TRAITS: [u8; #traits_bytes_len] = [ #(#traits_bytes),* ];
-            let _ = provider.set_provider_traits(&PROVIDER_TRAITS);
-        });
-    }
+    // Build a code fragment that registers the provider traits.
+    // See https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits
+    let register_traits: TokenStream = create_register_provider_traits(
+        &provider_ident_string,
+        provider_attrs.provider_group_guid.as_ref(),
+    );
 
     output.extend(quote! {
         #( #provider_doc_attrs )*
@@ -693,6 +659,54 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     output.extend(errors.into_iter().map(|e| e.to_compile_error()));
     output
+}
+
+/// Creates a fragment of code (statements) which will register the
+/// provider traits for this provider.
+fn create_register_provider_traits(
+    provider_name: &str,
+    provider_group_guid: Option<&Uuid>,
+) -> TokenStream {
+    fn align2(v: &mut Vec<u8>) {
+        if v.len() % 2 != 0 {
+            v.push(0);
+        }
+    }
+
+    let mut traits_bytes: Vec<u8> = Vec::new();
+    traits_bytes.push(0); // reserve space for TraitsSize (u16)
+    traits_bytes.push(0);
+
+    traits_bytes.extend_from_slice(provider_name.as_bytes());
+    traits_bytes.push(0);
+    align2(&mut traits_bytes);
+
+    if let Some(provider_group_guid) = provider_group_guid {
+        // Add trait for provider guid
+        let provider_guid_trait_offset = traits_bytes.len();
+        traits_bytes.push(0); // reserve space for TraitSize (u16)
+        traits_bytes.push(0);
+        traits_bytes.push(ETW_PROVIDER_TRAIT_TYPE_GROUP);
+        traits_bytes.extend_from_slice(provider_group_guid.as_bytes());
+        let provider_guid_trait_len = traits_bytes.len() - provider_guid_trait_offset;
+        // Set TraitSize (u16)
+        traits_bytes[provider_guid_trait_offset] = provider_guid_trait_len as u8;
+        traits_bytes[provider_guid_trait_offset + 1] = (provider_guid_trait_len >> 8) as u8;
+        align2(&mut traits_bytes);
+    }
+
+    // Set TraitsSize (u16)
+    traits_bytes[0] = traits_bytes.len() as u8;
+    traits_bytes[1] = (traits_bytes.len() >> 8) as u8;
+
+    let traits_bytes_len = traits_bytes.len();
+
+    quote! {
+        static PROVIDER_TRAITS: [u8; #traits_bytes_len] = [ #(#traits_bytes),* ];
+        // We ignore the Result from calling set_provider_traits.
+        // There is no good way to report it.
+        let _ = provider.set_provider_traits(&PROVIDER_TRAITS);
+    }
 }
 
 fn err_spanned<T: quote::ToTokens>(item: &T, msg: &str) -> TokenStream {
