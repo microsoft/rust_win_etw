@@ -20,6 +20,9 @@ pub use provider::*;
 #[doc(hidden)]
 pub use types::*;
 
+#[doc(inline)]
+pub use types::{SocketAddrV4, SocketAddrV6, FILETIME};
+
 #[doc(hidden)]
 pub use win_etw_metadata as metadata;
 

@@ -565,6 +565,34 @@ test_case! {
     ]
 }
 
+test_case! {
+    #[test]
+    fn event_with_keyword();
+    input: {
+        #[trace_logging_provider(guid = "00000000-0000-0000-0000-000000000001")]
+        trait Events
+        {
+            #[event(keyword = 100)]
+            fn foo();
+        }
+    }
+    expected_errors: []
+}
+
+test_case! {
+    #[test]
+    fn error_multiple_keyword();
+    input: {
+        #[trace_logging_provider(guid = "00000000-0000-0000-0000-000000000001")]
+        trait Events
+        {
+            #[event(keyword = 100)]
+            fn foo();
+        }
+    }
+    expected_errors: []
+}
+
 use quote::quote;
 
 fn test_provider_attributes_error(input: TokenStream, expected_errors: &[&str]) {

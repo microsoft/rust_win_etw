@@ -49,6 +49,8 @@
 //! definition is only used as input to the procedural macro; the trait is not emitted into your
 //! crate, and cannot be used as a normal trait.
 //!
+//! ## Defining event types (event methods)
+//!
 //! In the trait definition, add method signatures. Each method signature defines an _event type_.
 //! The parameters of each method define the fields of the event type. Only a limited set of field
 //! types are supported (enumerated below).
@@ -113,7 +115,7 @@
 //! group can be enabled or disabled as a unit. To do so, specify the GUID of the provider group
 //! when declaring the ETW provider. For example:
 //!
-//! ```rust
+//! ```no_test
 //! [trace_logging_provider(
 //!     guid = "...",                   // GUID of this provider
 //!     provider_group_guid = "..."     // GUID of the provider group that this provider belongs to
@@ -123,9 +125,27 @@
 //! }
 //! ```
 //!
-//! ## References
-//! * [TraceLoggingOptionGroup](https://docs.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-traceloggingoptiongroup)
-//! * [Provider Traits](https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits)
+//! ## The `#[event]` attribute
+//!
+//! The `#[event]` atttribute allows you to control various aspects of each event type.
+//! It is not necessary to use the `#[event]` attribute; if it is not specified, then
+//! reasonable defaults will be chosen. You can use the `#[event]` attribute to control
+//! these aspects of each event type:
+//!
+//! * `#[event(id = NN)]` - Specifies the event ID. All event types declared on a specific
+//!   event provider must have unique event IDs.  See [EVENT_DESCRIPTOR]::Id.
+//! * `#[event(level = NN)]` or `#[event(level = "...")]` - Specifies the event level.
+//!   See [EVENT_DESCRIPTOR]::Level.
+//!   This can either be a numeric value, or one of the following literal strings:
+//!   `"critical"`, `"error"`, `"warn"`, `"info"`, `"verbose"`.
+//! * `#[event(opcode = NN)]` - Specifies the [EVENT_DESCRIPTOR]::Opcode field.
+//! * `#[event(task = NN)` - Specifies the [EVENT_DESCRIPTOR]::Task field.
+//! * `#[event(keyword = NN)` - Specifies the [EVENT_DESCRIPTOR]::Keyword field.
+//!
+//! [EVENT_DESCRIPTOR]: https://docs.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
+//!
+//! You can use a single `#[event]` attribute with multiple values, or you can use
+//! multiple `#[event]` attributes.
 //!
 //! # How to capture and view events
 //!
@@ -156,6 +176,8 @@
 //! * [Event Tracing for Windows (ETW) Simplified](https://support.microsoft.com/en-us/help/2593157/event-tracing-for-windows-etw-simplified)
 //! * [TraceLogging for Event Tracing for Windows (ETW)](https://docs.microsoft.com/en-us/windows/win32/tracelogging/trace-logging-portal)
 //! * [Record and View TraceLogging Events](https://docs.microsoft.com/en-us/windows/win32/tracelogging/tracelogging-record-and-display-tracelogging-events)
+//! * [TraceLoggingOptionGroup](https://docs.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-traceloggingoptiongroup)
+//! * [Provider Traits](https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits)
 
 // https://doc.rust-lang.org/reference/procedural-macros.html
 
@@ -230,7 +252,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     let mut output = TokenStream::new();
 
-    let mut event_descriptors: Vec<syn::Item> = Vec::new();
+    // let mut event_descriptors: Vec<syn::Item> = Vec::new();
 
     let provider_metadata_ident = Ident::new(
         &format!("{}_PROVIDER_METADATA", provider_ident_string),
@@ -310,7 +332,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             ));
         }
 
-        let event_ident = &method.sig.ident;
         let event_name: String = method.sig.ident.to_string();
 
         // Here we build the data descriptor array. The data descriptor array is constructed on
@@ -321,7 +342,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         // For self-describing events (TraceLogging), the first two items in the data descriptor
         // array identify the provider metadata and the event metadata.
         let mut data_descriptor_array = TokenStream::new();
-        data_descriptor_array.extend(quote! {});
 
         // See comments in traceloggingprovider.h, around line 2300, which describe the
         // encoding of the event mdata.
@@ -432,6 +452,11 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         let event_opcode = event_attrs.opcode;
         let event_task = event_attrs.task;
         let potential_event_id = event_attrs.event_id;
+        let event_keyword = event_attrs
+            .keyword
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| parse_quote!(0));
 
         // We use the first entry to see if we have user provided IDs
         // or we are generating one.
@@ -466,17 +491,18 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             event_id_mappings.insert(event_id, identifier);
         }
 
-        event_descriptors.push(parse_quote!{
-            pub(crate) static #event_ident: ::win_etw_provider::EventDescriptor = ::win_etw_provider::EventDescriptor {
+        // an expression which generates EventDescriptor
+        let event_descriptor = quote! {
+            ::win_etw_provider::EventDescriptor {
                 id: #event_id,
                 version: 0,
                 channel: 11,
                 level: #event_level,
                 opcode: #event_opcode,
                 task: #event_task,
-                keyword: 0,
+                keyword: #event_keyword,
             };
-        });
+        };
 
         let event_attrs_method_attrs = &event_attrs.method_attrs;
 
@@ -503,15 +529,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                     #[used]
                     static EVENT_METADATA: [u8; #event_metadata_len] = [ #( #event_metadata, )* ];
 
-                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = ::win_etw_provider::EventDescriptor {
-                        id: #event_id,
-                        version: 0,
-                        channel: 11,
-                        level: #event_level,
-                        opcode: #event_opcode,
-                        task: #event_task,
-                        keyword: 0,
-                    };
+                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = #event_descriptor;
 
                     if let Some(opts) = options {
                         if let Some(level) = opts.level {
@@ -537,15 +555,10 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             pub fn #event_is_enabled_name(&self, level: ::core::option::Option<::win_etw_provider::Level>) -> bool {
                 #[cfg(target_os = "windows")]
                 {
-                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = ::win_etw_provider::EventDescriptor {
-                        id: #event_id,
-                        version: 0,
-                        channel: 11,
-                        level: level.unwrap_or(#event_level),
-                        opcode: #event_opcode,
-                        task: #event_task,
-                        keyword: 0,
-                    };
+                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = #event_descriptor;
+                    if let Some(level) = level {
+                        event_descriptor.level = level;
+                    }
 
                     ::win_etw_provider::Provider::is_event_enabled(
                         &self.provider,
@@ -1202,6 +1215,7 @@ struct EventAttributes {
     level: syn::Expr,
     opcode: syn::Expr,
     task: syn::Expr,
+    keyword: Option<syn::Expr>,
     event_id: Option<u16>,
     method_attrs: Vec<syn::Attribute>,
 }
@@ -1214,6 +1228,8 @@ fn parse_event_attributes(
     let mut level: Expr = parse_quote!(::win_etw_provider::Level::VERBOSE);
     let mut opcode: Expr = parse_quote!(0);
     let mut task: Expr = parse_quote!(0);
+    let mut keyword: Option<Expr> = None;
+
     // I am not aware of how to convert from Expr to actual value
     // so going to handle this here.
     let mut event_id: Option<u16> = None;
@@ -1227,7 +1243,7 @@ fn parse_event_attributes(
         if attr.path == parse_quote!(doc) {
             method_attrs.push(attr.clone());
             event_already_has_doc = true;
-        } else if attr.path == parse_quote!(event) {
+        } else if attr.path.is_ident("event") {
             // The #[event] attribute lets the application specify the level, opcode, task,
             // keyword, etc.
             match attr.parse_meta() {
@@ -1272,6 +1288,15 @@ fn parse_event_attributes(
                                         lit: lit.clone(),
                                         attrs: Vec::new(),
                                     });
+                                } else if path.is_ident("keyword") {
+                                    if keyword.is_some() {
+                                        errors.push(Error::new(attr.span(), "The 'keyword' attribute cannot be specified more than once."));
+                                    } else {
+                                        keyword = Some(Expr::Lit(ExprLit {
+                                            lit: lit.clone(),
+                                            attrs: Vec::new(),
+                                        }));
+                                    }
                                 } else if path.is_ident("id") {
                                     if event_id.is_some() {
                                         errors.push(Error::new(
@@ -1340,6 +1365,7 @@ fn parse_event_attributes(
         opcode,
         task,
         event_id,
+        keyword,
     }
 }
 
