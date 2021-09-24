@@ -585,7 +585,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         .collect::<Vec<_>>();
 
     // Build a code fragment that registers the provider traits.
-    // See https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits
     let register_traits: TokenStream = create_register_provider_traits(
         &provider_ident_string,
         provider_attrs.provider_group_guid.as_ref(),
@@ -663,6 +662,8 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
 /// Creates a fragment of code (statements) which will register the
 /// provider traits for this provider.
+//
+// See https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits
 fn create_register_provider_traits(
     provider_name: &str,
     provider_group_guid: Option<&Uuid>,
