@@ -875,11 +875,29 @@ fn parse_event_field(
                     EventDataDescriptor::from(#field_name),
                 });
             }
-            WellKnownType::u16cstr => {
+            WellKnownType::u16str => {
+                // UCS-2 string without NUL terminator.
                 let field_len = ident_suffix(field_name, "len");
                 statements.extend(quote! {
                     let #field_len: usize = #field_name.len(); // length in code units
-                    let #field_len: u16 = (#field_len * 2 + 1).min(0xffff) as u16; // length in bytes
+                    // Since we're recording this as COUNTEDUNICODESTRING, we
+                    // want the length in bytes of the string, excluding the NUL.
+                    // Which is easy, because there is no NUL.
+                    let #field_len: u16 = (#field_len * 2).min(0xffff) as u16;
+                });
+                data_descriptor_array.extend(quote! {
+                    EventDataDescriptor::from(&#field_len),
+                    EventDataDescriptor::from(#field_name),
+                });
+            }
+            WellKnownType::u16cstr => {
+                // UCS-2 string without NUL terminator.
+                let field_len = ident_suffix(field_name, "len");
+                statements.extend(quote! {
+                    let #field_len: usize = #field_name.len(); // length in code units
+                    // Since we're recording this as COUNTEDUNICODESTRING, we
+                    // want the length in bytes of the string, excluding the NUL.
+                    let #field_len: u16 = (#field_len * 2).min(0xffff) as u16;
                 });
                 data_descriptor_array.extend(quote! {
                     EventDataDescriptor::from(&#field_len),
@@ -901,7 +919,7 @@ fn parse_event_field(
                             #field_u16cstring = s;
                             #field_u16cstr = #field_u16cstring.as_ref();
                             #field_desc = EventDataDescriptor::from(#field_u16cstr);
-                            #field_len = #field_u16cstr.len() as u16; // length in UTF-16 code units, not bytes
+                            #field_len = (#field_u16cstr.len() as u16 * 2); // compute length in bytes
                         }
                         Err(_) => {
                             #field_desc = EventDataDescriptor::empty();

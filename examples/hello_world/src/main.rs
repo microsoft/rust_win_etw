@@ -4,6 +4,7 @@ use win_etw_macros::trace_logging_provider;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::time::{Duration, SystemTime};
+use widestring::{U16CString, U16String};
 use win_etw_provider::{guid, FILETIME, GUID};
 
 // {861A3948-3B6B-4DDF-B862-B2CB361E238E}
@@ -38,6 +39,12 @@ fn main() {
     );
 
     hello_provider.arg_u32_hex(None, 0xcafef00d);
+
+    use std::ffi::OsString;
+
+    hello_provider.arg_u16str(None, &U16String::from_str("this is a u16str"));
+    hello_provider.arg_u16cstr(None, &U16CString::from_str("this is a u16cstr").unwrap());
+    hello_provider.arg_osstr(None, &OsString::from("hello!"));
 
     #[cfg(target_os = "windows")]
     {
@@ -112,6 +119,7 @@ trait HelloWorldProvider {
     fn arg_ntstatus(a: NTSTATUS);
     fn arg_win32error(a: WIN32ERROR);
 
+    fn arg_u16str(a: &U16Str);
     fn arg_u16cstr(a: &U16CStr);
     fn arg_osstr(a: &OsStr);
 

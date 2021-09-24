@@ -48,6 +48,10 @@ impl syn::parse::Parse for CompileErrors {
 
 fn test_worker(attrs: TokenStream, input: TokenStream, expected_errors: &[&'static str]) {
     let output = trace_logging_events_core(attrs, input);
+
+    // Set WIN_ETW_SHOW_OUTPUT=1 (or = anything at all) to see the output of
+    // the trace_logging_provider macro for unit tests. This is useful during
+    // development.
     if std::env::var("WIN_ETW_SHOW_OUTPUT").is_ok() {
         let output_str = format!("{}", output);
         use std::io::Write;

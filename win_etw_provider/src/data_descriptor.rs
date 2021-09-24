@@ -1,7 +1,7 @@
 use crate::guid::GUID;
 use core::marker::PhantomData;
 use core::mem::size_of;
-use widestring::U16CStr;
+use widestring::{U16CStr, U16Str};
 use zerocopy::AsBytes;
 
 /// Contains a reference to the data for an event field. The type of the data is not specified in
@@ -142,11 +142,22 @@ impl<'a> From<&'a str> for EventDataDescriptor<'a> {
     }
 }
 
+impl<'a> From<&'a U16Str> for EventDataDescriptor<'a> {
+    fn from(value: &'a U16Str) -> EventDataDescriptor<'a> {
+        Self {
+            ptr: value.as_ptr() as usize as u64,
+            size: (value.len() * 2) as u32,
+            kind: 0,
+            phantom_ref: PhantomData,
+        }
+    }
+}
+
 impl<'a> From<&'a U16CStr> for EventDataDescriptor<'a> {
     fn from(value: &'a U16CStr) -> EventDataDescriptor<'a> {
         Self {
             ptr: value.as_ptr() as usize as u64,
-            size: (value.len() * 2 + 1) as u32,
+            size: (value.len() * 2) as u32,
             kind: 0,
             phantom_ref: PhantomData,
         }
