@@ -14,8 +14,9 @@ pub const AF_INET: u16 = 2;
 /// The value used in `SocketAddrV6::family` to identify IPv6 addresses.
 pub const AF_INET6: u16 = 23;
 
-/// This has the same in-memory representation as the Win32 SOCKADDR_IN structure.
-/// https://docs.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-sockaddr_in
+/// This has the same in-memory representation as the Win32 `[SOCKADDR_IN]` structure.
+///
+/// [SOCKADDR_IN]: https://docs.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-sockaddr_in
 #[repr(C)]
 #[derive(AsBytes, Clone)]
 pub struct SocketAddrV4 {

@@ -112,6 +112,12 @@ well_known_types! {
         in_type: InFlag::COUNTED_ANSI_STRING,
         out_type: Some(OutFlag::UTF8),
     }
+    u16str: &U16Str => {
+        is_ref: true,
+        primitive: false,
+        in_type: InFlag::COUNTED_UNICODE_STRING,
+        replacement_type: Some(parse_quote!(&::widestring::U16Str)),
+    }
     u16cstr: &U16CStr => {
         is_ref: true,
         primitive: false,

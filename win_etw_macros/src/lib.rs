@@ -49,6 +49,8 @@
 //! definition is only used as input to the procedural macro; the trait is not emitted into your
 //! crate, and cannot be used as a normal trait.
 //!
+//! ## Defining event types (event methods)
+//!
 //! In the trait definition, add method signatures. Each method signature defines an _event type_.
 //! The parameters of each method define the fields of the event type. Only a limited set of field
 //! types are supported (enumerated below).
@@ -107,6 +109,44 @@
 //! * `SockAddr`, `SockAddrV4`, and `SockAddrV6` are supported. They must be declared exactly as
 //!   shown, not using fully-qualified names or type aliases.
 //!
+//! # Provider groups
+//!
+//! When creating an ETW provider, you can place ETW providers into _provider groups_. A provider
+//! group can be enabled or disabled as a unit. To do so, specify the GUID of the provider group
+//! when declaring the ETW provider. For example:
+//!
+//! ```no_test
+//! [trace_logging_provider(
+//!     guid = "...",                   // GUID of this provider
+//!     provider_group_guid = "..."     // GUID of the provider group that this provider belongs to
+//! )]
+//! pub trait MyEvents {
+//!     // ...
+//! }
+//! ```
+//!
+//! ## The `#[event]` attribute
+//!
+//! The `#[event]` atttribute allows you to control various aspects of each event type.
+//! It is not necessary to use the `#[event]` attribute; if it is not specified, then
+//! reasonable defaults will be chosen. You can use the `#[event]` attribute to control
+//! these aspects of each event type:
+//!
+//! * `#[event(id = NN)]` - Specifies the event ID. All event types declared on a specific
+//!   event provider must have unique event IDs.  See [EVENT_DESCRIPTOR]::Id.
+//! * `#[event(level = NN)]` or `#[event(level = "...")]` - Specifies the event level.
+//!   See [EVENT_DESCRIPTOR]::Level.
+//!   This can either be a numeric value, or one of the following literal strings:
+//!   `"critical"`, `"error"`, `"warn"`, `"info"`, `"verbose"`.
+//! * `#[event(opcode = NN)]` - Specifies the [EVENT_DESCRIPTOR]::Opcode field.
+//! * `#[event(task = NN)` - Specifies the [EVENT_DESCRIPTOR]::Task field.
+//! * `#[event(keyword = NN)` - Specifies the [EVENT_DESCRIPTOR]::Keyword field.
+//!
+//! [EVENT_DESCRIPTOR]: https://docs.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
+//!
+//! You can use a single `#[event]` attribute with multiple values, or you can use
+//! multiple `#[event]` attributes.
+//!
 //! # How to capture and view events
 //!
 //! There are a variety of tools which can be used to capture and view ETW events.
@@ -136,6 +176,8 @@
 //! * [Event Tracing for Windows (ETW) Simplified](https://support.microsoft.com/en-us/help/2593157/event-tracing-for-windows-etw-simplified)
 //! * [TraceLogging for Event Tracing for Windows (ETW)](https://docs.microsoft.com/en-us/windows/win32/tracelogging/trace-logging-portal)
 //! * [Record and View TraceLogging Events](https://docs.microsoft.com/en-us/windows/win32/tracelogging/tracelogging-record-and-display-tracelogging-events)
+//! * [TraceLoggingOptionGroup](https://docs.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-traceloggingoptiongroup)
+//! * [Provider Traits](https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits)
 
 // https://doc.rust-lang.org/reference/procedural-macros.html
 
@@ -143,12 +185,15 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::single_match)]
+#![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::vec_init_then_push)]
 
 extern crate proc_macro;
 
 mod errors;
 mod well_known_types;
 
+use errors::{CombinedErrors, ErrorScope};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use std::{collections::HashMap, iter::Extend};
@@ -209,12 +254,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     let mut output = TokenStream::new();
 
-    // provider_mod_ident is a module that we generate that contains implementation details.
-    // It is not intended to be used directly by applications.
-    let provider_mod_ident: Ident = ident_suffix(provider_ident, "implementation");
-
-    let mut event_descriptors: Vec<syn::Item> = Vec::new();
-
     let provider_metadata_ident = Ident::new(
         &format!("{}_PROVIDER_METADATA", provider_ident_string),
         provider_ident.span(),
@@ -229,7 +268,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             .as_ref()
             .unwrap_or(&provider_ident_string);
         output.extend(create_provider_metadata(
-            &provider_name,
+            provider_name,
             &provider_metadata_ident,
         ));
     }
@@ -293,7 +332,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             ));
         }
 
-        let event_ident = &method.sig.ident;
         let event_name: String = method.sig.ident.to_string();
 
         // Here we build the data descriptor array. The data descriptor array is constructed on
@@ -304,7 +342,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         // For self-describing events (TraceLogging), the first two items in the data descriptor
         // array identify the provider metadata and the event metadata.
         let mut data_descriptor_array = TokenStream::new();
-        data_descriptor_array.extend(quote! {});
 
         // See comments in traceloggingprovider.h, around line 2300, which describe the
         // encoding of the event mdata.
@@ -364,7 +401,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                         &wk,
                         event_attr.as_ref(),
                         param_span,
-                        &param_name,
+                        param_name,
                         &mut *param_typed.ty,
                         &mut data_descriptor_array,
                         &mut event_metadata,
@@ -415,6 +452,11 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         let event_opcode = event_attrs.opcode;
         let event_task = event_attrs.task;
         let potential_event_id = event_attrs.event_id;
+        let event_keyword = event_attrs
+            .keyword
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| parse_quote!(0));
 
         // We use the first entry to see if we have user provided IDs
         // or we are generating one.
@@ -449,17 +491,18 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             event_id_mappings.insert(event_id, identifier);
         }
 
-        event_descriptors.push(parse_quote!{
-            pub(crate) static #event_ident: ::win_etw_provider::EventDescriptor = ::win_etw_provider::EventDescriptor {
+        // an expression which generates EventDescriptor
+        let event_descriptor = quote! {
+            ::win_etw_provider::EventDescriptor {
                 id: #event_id,
                 version: 0,
                 channel: 11,
                 level: #event_level,
                 opcode: #event_opcode,
                 task: #event_task,
-                keyword: 0,
+                keyword: #event_keyword,
             };
-        });
+        };
 
         let event_attrs_method_attrs = &event_attrs.method_attrs;
 
@@ -486,15 +529,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                     #[used]
                     static EVENT_METADATA: [u8; #event_metadata_len] = [ #( #event_metadata, )* ];
 
-                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = ::win_etw_provider::EventDescriptor {
-                        id: #event_id,
-                        version: 0,
-                        channel: 11,
-                        level: #event_level,
-                        opcode: #event_opcode,
-                        task: #event_task,
-                        keyword: 0,
-                    };
+                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = #event_descriptor;
 
                     if let Some(opts) = options {
                         if let Some(level) = opts.level {
@@ -520,15 +555,10 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             pub fn #event_is_enabled_name(&self, level: ::core::option::Option<::win_etw_provider::Level>) -> bool {
                 #[cfg(target_os = "windows")]
                 {
-                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = ::win_etw_provider::EventDescriptor {
-                        id: #event_id,
-                        version: 0,
-                        channel: 11,
-                        level: level.unwrap_or(#event_level),
-                        opcode: #event_opcode,
-                        task: #event_task,
-                        keyword: 0,
-                    };
+                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = #event_descriptor;
+                    if let Some(level) = level {
+                        event_descriptor.level = level;
+                    }
 
                     ::win_etw_provider::Provider::is_event_enabled(
                         &self.provider,
@@ -548,14 +578,20 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     // If the input item has doc attributes, then carry them over to the output type.
     let doc_path: syn::Path = parse_quote!(doc);
-    let provider_attrs = logging_trait
+    let provider_doc_attrs = logging_trait
         .attrs
         .iter()
         .filter(|a| a.path == doc_path)
         .collect::<Vec<_>>();
 
+    // Build a code fragment that registers the provider traits.
+    let register_traits: TokenStream = create_register_provider_traits(
+        &provider_ident_string,
+        provider_attrs.provider_group_guid.as_ref(),
+    );
+
     output.extend(quote! {
-        #( #provider_attrs )*
+        #( #provider_doc_attrs )*
         #vis struct #provider_ident {
             provider: ::core::option::Option<::win_etw_provider::EtwProvider>,
         }
@@ -577,7 +613,9 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                         #[cfg(target_os = "windows")]
                         {
                             let _ = provider.register_provider_metadata(&#provider_metadata_ident);
+                            #register_traits
                         }
+
                         Some(provider)
                     }
                     Err(_) => None,
@@ -616,21 +654,60 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         impl #provider_ident {
             #provider_impl_items
         }
-
-        #[doc(hidden)]
-        #[allow(non_snake_case)]
-        mod #provider_mod_ident {
-            /*
-            pub(crate) mod event_descriptors {
-                #![allow(non_upper_case_globals)]
-                #( #event_descriptors )*
-            }
-            */
-        }
     });
 
     output.extend(errors.into_iter().map(|e| e.to_compile_error()));
     output
+}
+
+/// Creates a fragment of code (statements) which will register the
+/// provider traits for this provider.
+//
+// See https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits
+fn create_register_provider_traits(
+    provider_name: &str,
+    provider_group_guid: Option<&Uuid>,
+) -> TokenStream {
+    fn align2(v: &mut Vec<u8>) {
+        if v.len() % 2 != 0 {
+            v.push(0);
+        }
+    }
+
+    let mut traits_bytes: Vec<u8> = Vec::new();
+    traits_bytes.push(0); // reserve space for TraitsSize (u16)
+    traits_bytes.push(0);
+
+    traits_bytes.extend_from_slice(provider_name.as_bytes());
+    traits_bytes.push(0);
+    align2(&mut traits_bytes);
+
+    if let Some(provider_group_guid) = provider_group_guid {
+        // Add trait for provider guid
+        let provider_guid_trait_offset = traits_bytes.len();
+        traits_bytes.push(0); // reserve space for TraitSize (u16)
+        traits_bytes.push(0);
+        traits_bytes.push(ETW_PROVIDER_TRAIT_TYPE_GROUP);
+        traits_bytes.extend_from_slice(provider_group_guid.as_bytes());
+        let provider_guid_trait_len = traits_bytes.len() - provider_guid_trait_offset;
+        // Set TraitSize (u16)
+        traits_bytes[provider_guid_trait_offset] = provider_guid_trait_len as u8;
+        traits_bytes[provider_guid_trait_offset + 1] = (provider_guid_trait_len >> 8) as u8;
+        align2(&mut traits_bytes);
+    }
+
+    // Set TraitsSize (u16)
+    traits_bytes[0] = traits_bytes.len() as u8;
+    traits_bytes[1] = (traits_bytes.len() >> 8) as u8;
+
+    let traits_bytes_len = traits_bytes.len();
+
+    quote! {
+        static PROVIDER_TRAITS: [u8; #traits_bytes_len] = [ #(#traits_bytes),* ];
+        // We ignore the Result from calling set_provider_traits.
+        // There is no good way to report it.
+        let _ = provider.set_provider_traits(&PROVIDER_TRAITS);
+    }
 }
 
 fn err_spanned<T: quote::ToTokens>(item: &T, msg: &str) -> TokenStream {
@@ -799,11 +876,29 @@ fn parse_event_field(
                     EventDataDescriptor::from(#field_name),
                 });
             }
-            WellKnownType::u16cstr => {
+            WellKnownType::u16str => {
+                // UCS-2 string without NUL terminator.
                 let field_len = ident_suffix(field_name, "len");
                 statements.extend(quote! {
                     let #field_len: usize = #field_name.len(); // length in code units
-                    let #field_len: u16 = #field_len.min(0xffff) as u16;
+                    // Since we're recording this as COUNTEDUNICODESTRING, we
+                    // want the length in bytes of the string, excluding the NUL.
+                    // Which is easy, because there is no NUL.
+                    let #field_len: u16 = (#field_len * 2).min(0xffff) as u16;
+                });
+                data_descriptor_array.extend(quote! {
+                    EventDataDescriptor::from(&#field_len),
+                    EventDataDescriptor::from(#field_name),
+                });
+            }
+            WellKnownType::u16cstr => {
+                // UCS-2 string without NUL terminator.
+                let field_len = ident_suffix(field_name, "len");
+                statements.extend(quote! {
+                    let #field_len: usize = #field_name.len(); // length in code units
+                    // Since we're recording this as COUNTEDUNICODESTRING, we
+                    // want the length in bytes of the string, excluding the NUL.
+                    let #field_len: u16 = (#field_len * 2).min(0xffff) as u16;
                 });
                 data_descriptor_array.extend(quote! {
                     EventDataDescriptor::from(&#field_len),
@@ -825,7 +920,7 @@ fn parse_event_field(
                             #field_u16cstring = s;
                             #field_u16cstr = #field_u16cstring.as_ref();
                             #field_desc = EventDataDescriptor::from(#field_u16cstr);
-                            #field_len = #field_u16cstr.len() as u16; // length in UTF-16 code units, not bytes
+                            #field_len = (#field_u16cstr.len() as u16 * 2); // compute length in bytes
                         }
                         Err(_) => {
                             #field_desc = EventDataDescriptor::empty();
@@ -1004,13 +1099,12 @@ fn parse_event_field(
     Ok(())
 }
 
-use errors::CombinedErrors;
-
 /// Represents the "attribute" parameter of the `#[trace_logging_provider]` proc macro.
 #[derive(Default, Debug)]
 struct ProviderAttributes {
     uuid: Uuid,
     provider_name: Option<String>,
+    provider_group_guid: Option<Uuid>,
 }
 
 impl syn::parse::Parse for ProviderAttributes {
@@ -1021,31 +1115,33 @@ impl syn::parse::Parse for ProviderAttributes {
         let items: syn::punctuated::Punctuated<syn::Meta, Token![,]> =
             stream.parse_terminated(syn::Meta::parse)?;
 
+        let mut provider_group_guid: Option<Uuid> = None;
+
+        let parse_guid_value = |lit: &Lit, scope: &mut ErrorScope| -> Uuid {
+            if let syn::Lit::Str(s) = lit {
+                let guid_str = s.value();
+                if let Ok(value) = guid_str.parse::<Uuid>() {
+                    if value == Uuid::nil() {
+                        scope.msg("The GUID cannot be the NIL (all-zeroes) GUID.");
+                    }
+                    value
+                } else {
+                    scope.msg("The attribute value is required to be a valid GUID.");
+                    Uuid::nil()
+                }
+            } else {
+                scope.msg("The attribute value is required to be a GUID in string form.");
+                Uuid::nil()
+            }
+        };
+
         let mut provider_name = None;
         for item in items.iter() {
             errors.scope(item.span(), |scope| {
                 match item {
                     syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
                         if path.is_ident("guid") {
-                            let s = if let syn::Lit::Str(s) = lit {
-                                s
-                            } else {
-                                scope.msg(
-                                    "The attribute value is required to be a GUID in string form.",
-                                );
-                                return Ok(());
-                            };
-
-                            let guid_str = s.value();
-                            let uuid = if let Ok(value) = guid_str.parse::<Uuid>() {
-                                if value == Uuid::nil() {
-                                    scope.msg("The GUID cannot be the NIL (all-zeroes) GUID.");
-                                }
-                                value
-                            } else {
-                                scope.msg("The attribute value is required to be a valid GUID.");
-                                Uuid::nil()
-                            };
+                            let uuid = parse_guid_value(lit, scope);
                             if uuid_opt.is_some() {
                                 scope.msg(
                                     "The 'guid' attribute key cannot be specified more than once.",
@@ -1062,6 +1158,13 @@ impl syn::parse::Parse for ProviderAttributes {
                                 }
                             } else {
                                 scope.msg("The 'name' attribute key requires a string value.");
+                            }
+                        } else if path.is_ident("provider_group_guid") {
+                            let uuid = parse_guid_value(lit, scope);
+                            if provider_group_guid.is_some() {
+                                scope.msg("The 'provider_group_guid' attribute key cannot be specified more than once.");
+                            } else {
+                                provider_group_guid = Some(uuid);
                             }
                         } else {
                             scope.msg("Unrecognized attribute key.");
@@ -1101,6 +1204,7 @@ Example: #[trace_logging_provider(guid = \"123e4567-e89b...\")]",
         errors.into_result(ProviderAttributes {
             uuid,
             provider_name,
+            provider_group_guid,
         })
     }
 }
@@ -1144,6 +1248,7 @@ struct EventAttributes {
     level: syn::Expr,
     opcode: syn::Expr,
     task: syn::Expr,
+    keyword: Option<syn::Expr>,
     event_id: Option<u16>,
     method_attrs: Vec<syn::Attribute>,
 }
@@ -1156,6 +1261,8 @@ fn parse_event_attributes(
     let mut level: Expr = parse_quote!(::win_etw_provider::Level::VERBOSE);
     let mut opcode: Expr = parse_quote!(0);
     let mut task: Expr = parse_quote!(0);
+    let mut keyword: Option<Expr> = None;
+
     // I am not aware of how to convert from Expr to actual value
     // so going to handle this here.
     let mut event_id: Option<u16> = None;
@@ -1169,7 +1276,7 @@ fn parse_event_attributes(
         if attr.path == parse_quote!(doc) {
             method_attrs.push(attr.clone());
             event_already_has_doc = true;
-        } else if attr.path == parse_quote!(event) {
+        } else if attr.path.is_ident("event") {
             // The #[event] attribute lets the application specify the level, opcode, task,
             // keyword, etc.
             match attr.parse_meta() {
@@ -1214,6 +1321,15 @@ fn parse_event_attributes(
                                         lit: lit.clone(),
                                         attrs: Vec::new(),
                                     });
+                                } else if path.is_ident("keyword") {
+                                    if keyword.is_some() {
+                                        errors.push(Error::new(attr.span(), "The 'keyword' attribute cannot be specified more than once."));
+                                    } else {
+                                        keyword = Some(Expr::Lit(ExprLit {
+                                            lit: lit.clone(),
+                                            attrs: Vec::new(),
+                                        }));
+                                    }
                                 } else if path.is_ident("id") {
                                     if event_id.is_some() {
                                         errors.push(Error::new(
@@ -1282,9 +1398,9 @@ fn parse_event_attributes(
         opcode,
         task,
         event_id,
+        keyword,
     }
 }
-
 
 /// The separator we use to build dynamic identifiers, based on existing identifiers.
 /// Ideally, we would use a string that will not cause collisions with user-provided
@@ -1304,3 +1420,5 @@ fn ident_suffix(ident: &Ident, suffix: &str) -> Ident {
         ident.span(),
     )
 }
+
+const ETW_PROVIDER_TRAIT_TYPE_GROUP: u8 = 1;
