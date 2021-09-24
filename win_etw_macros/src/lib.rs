@@ -879,7 +879,7 @@ fn parse_event_field(
                 let field_len = ident_suffix(field_name, "len");
                 statements.extend(quote! {
                     let #field_len: usize = #field_name.len(); // length in code units
-                    let #field_len: u16 = #field_len.min(0xffff) as u16;
+                    let #field_len: u16 = (#field_len * 2 + 1).min(0xffff) as u16; // length in bytes
                 });
                 data_descriptor_array.extend(quote! {
                     EventDataDescriptor::from(&#field_len),
