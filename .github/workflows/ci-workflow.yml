@@ -1,0 +1,35 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        rust: [1.55.0, stable]
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os}
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        profile: minimal
+        override: true
+        components: rustfmt
+        
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: fmt
+      if: matrix.rust == 'stable'
+      run: cargo fmt --all -- --check
+
