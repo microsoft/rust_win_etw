@@ -5,7 +5,6 @@ use core::convert::TryFrom;
 use core::pin::Pin;
 use core::ptr::null;
 use core::sync::atomic::{AtomicU8, Ordering::SeqCst};
-use winapi::ctypes::c_void;
 
 #[cfg(target_os = "windows")]
 use win_support::*;
@@ -340,7 +339,7 @@ impl EtwProvider {
                 let error = evntprov::EventSetInformation(
                     self.handle,
                     evntprov::EventProviderSetTraits,
-                    provider_traits.as_ptr() as *mut u8 as *mut c_void,
+                    provider_traits.as_ptr() as *mut u8 as *mut winapi::ctypes::c_void,
                     u32::try_from(provider_traits.len()).unwrap(),
                 );
                 if error != 0 {
