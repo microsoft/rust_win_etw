@@ -1,0 +1,23 @@
+# Copyright (C) Microsoft Corporation. All rights reserved.
+
+[package]
+name = "win_etw_tracing"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+description = "Provides a backend for the `tracing` crate that logs events to ETW (Event Tracing for Windows)."
+
+
+[features]
+default = ["tracing-log"]
+
+[dependencies]
+bytes = "1"
+tracing = "0.1"
+tracing-log = { version = "0.1", optional = true, default-features = false, features = ["log-tracer", "std"] }
+tracing-subscriber = "0.3.7"
+win_etw_metadata = { path = "../win_etw_metadata" }
+win_etw_provider = { path = "../win_etw_provider" }
+
+[dev-dependencies]
+anyhow = "1"
