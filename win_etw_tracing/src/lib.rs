@@ -2,12 +2,13 @@
 
 //! Subscriber for tracing events that emits Windows ETW tracelogging events.
 #![cfg(windows)]
+#![forbid(unsafe_code)]
 
 use bytes::BufMut;
-use std::fmt;
+use core::fmt;
+use core::sync::atomic::AtomicU64;
+use core::sync::atomic::Ordering;
 use std::io::Write;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
 use tracing::field::Field;
 use tracing::field::Visit;
 use tracing::span::Attributes;
@@ -60,7 +61,7 @@ impl TracelogSubscriber {
     pub fn enable_telemetry_events(&self, enabled: bool) {
         self.keyword_mask.store(
             if enabled {
-                !(0_u64)
+                !0_u64
             } else {
                 // MICROSOFT_KEYWORD_CRITICAL_DATA | MICROSOFT_KEYWORD_MEASURES | MICROSOFT_KEYWORD_TELEMETRY
                 !0x0000e00000000000
@@ -155,23 +156,12 @@ impl TracelogSubscriber {
     }
 }
 
-extern "C" {
-    fn EventActivityIdControl(ControlCode: u32, ActivityId: *mut GUID) -> u32;
-}
-
-const EVENT_ACTIVITY_CTRL_CREATE_ID: u32 = 3;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct ActivityId(GUID);
 
 impl ActivityId {
-    fn new() -> Self {
-        // SAFETY: calling API according to docs
-        unsafe {
-            let mut guid = GUID::default();
-            EventActivityIdControl(EVENT_ACTIVITY_CTRL_CREATE_ID, &mut guid);
-            Self(guid)
-        }
+    fn new() -> Result<Self, Error> {
+        Ok(Self(win_etw_provider::new_activity_id()?))
     }
 }
 
@@ -184,7 +174,7 @@ where
     S: for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        let activity_id = ActivityId::new();
+        let activity_id = ActivityId::new().unwrap_or_default();
 
         let related_activity_id = {
             if attrs.is_contextual() {
