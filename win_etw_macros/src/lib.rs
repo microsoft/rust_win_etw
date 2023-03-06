@@ -612,7 +612,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                     Ok(mut provider) => {
                         #[cfg(target_os = "windows")]
                         {
-                            let _ = provider.register_provider_metadata(&#provider_metadata_ident);
                             #register_traits
                         }
 
@@ -668,19 +667,12 @@ fn create_register_provider_traits(
     provider_name: &str,
     provider_group_guid: Option<&Uuid>,
 ) -> TokenStream {
-    fn align2(v: &mut Vec<u8>) {
-        if v.len() % 2 != 0 {
-            v.push(0);
-        }
-    }
-
     let mut traits_bytes: Vec<u8> = Vec::new();
     traits_bytes.push(0); // reserve space for TraitsSize (u16)
     traits_bytes.push(0);
 
     traits_bytes.extend_from_slice(provider_name.as_bytes());
     traits_bytes.push(0);
-    align2(&mut traits_bytes);
 
     if let Some(provider_group_guid) = provider_group_guid {
         // Add trait for provider guid
@@ -688,12 +680,22 @@ fn create_register_provider_traits(
         traits_bytes.push(0); // reserve space for TraitSize (u16)
         traits_bytes.push(0);
         traits_bytes.push(ETW_PROVIDER_TRAIT_TYPE_GROUP);
-        traits_bytes.extend_from_slice(provider_group_guid.as_bytes());
+
+        let (data1, data2, data3, data4) = provider_group_guid.to_fields_le();
+        traits_bytes.push(((data1 & 0xff000000) >> 24) as u8);
+        traits_bytes.push(((data1 & 0x00ff0000) >> 16) as u8);
+        traits_bytes.push(((data1 & 0x0000ff00) >> 8) as u8);
+        traits_bytes.push(((data1 & 0x000000ff) >> 0) as u8);
+        traits_bytes.push(((data2 & 0xff00) >> 8) as u8);
+        traits_bytes.push(((data2 & 0x00ff) >> 0) as u8);
+        traits_bytes.push(((data3 & 0xff00) >> 8) as u8);
+        traits_bytes.push(((data3 & 0x00ff) >> 0) as u8);
+        traits_bytes.extend_from_slice(data4);
+
         let provider_guid_trait_len = traits_bytes.len() - provider_guid_trait_offset;
         // Set TraitSize (u16)
         traits_bytes[provider_guid_trait_offset] = provider_guid_trait_len as u8;
         traits_bytes[provider_guid_trait_offset + 1] = (provider_guid_trait_len >> 8) as u8;
-        align2(&mut traits_bytes);
     }
 
     // Set TraitsSize (u16)
