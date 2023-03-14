@@ -18,4 +18,4 @@ proc-macro2 = "^1.0"
 syn = { version = "^1.0", features = ["full", "extra-traits"] }
 quote = "^1.0"
 win_etw_metadata = { version = "^0.1.1", path = "../win_etw_metadata" }
-uuid = { version = "^0.8" }
+uuid = { version = "^1.3" }
