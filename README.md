@@ -51,7 +51,7 @@ There are many tools which can create a GUID, such as:
 Add a trait definition to your source code and annotate it with the
 `#[trace_logging_provider(guid = "...")]` macro, using the GUID that you just created. The trait
 definition is only used as input to the procedural macro; the trait is not emitted into your
-crate, and cannot be used as a normal trait.
+crate, and cannot be used as a normal trait. The name you give the trait will be the ETW "Provider Name".
 
 In the trait definition, add method signatures. Each method signature defines an _event type_.
 The parameters of each method define the fields of the event type. Only a limited set of field
