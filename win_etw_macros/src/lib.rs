@@ -680,18 +680,7 @@ fn create_register_provider_traits(
         traits_bytes.push(0); // reserve space for TraitSize (u16)
         traits_bytes.push(0);
         traits_bytes.push(ETW_PROVIDER_TRAIT_TYPE_GROUP);
-
-        let (data1, data2, data3, data4) = provider_group_guid.to_fields_le();
-        traits_bytes.push(((data1 & 0xff000000) >> 24) as u8);
-        traits_bytes.push(((data1 & 0x00ff0000) >> 16) as u8);
-        traits_bytes.push(((data1 & 0x0000ff00) >> 8) as u8);
-        traits_bytes.push(((data1 & 0x000000ff) >> 0) as u8);
-        traits_bytes.push(((data2 & 0xff00) >> 8) as u8);
-        traits_bytes.push(((data2 & 0x00ff) >> 0) as u8);
-        traits_bytes.push(((data3 & 0xff00) >> 8) as u8);
-        traits_bytes.push(((data3 & 0x00ff) >> 0) as u8);
-        traits_bytes.extend_from_slice(data4);
-
+        traits_bytes.extend_from_slice(&provider_group_guid.to_bytes_le());
         let provider_guid_trait_len = traits_bytes.len() - provider_guid_trait_offset;
         // Set TraitSize (u16)
         traits_bytes[provider_guid_trait_offset] = provider_guid_trait_len as u8;
