@@ -402,7 +402,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                         event_attr.as_ref(),
                         param_span,
                         param_name,
-                        &mut *param_typed.ty,
+                        &mut param_typed.ty,
                         &mut data_descriptor_array,
                         &mut event_metadata,
                         &mut statements,
@@ -509,7 +509,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         // Generate the `${name}_is_enabled` function for this event.
         // We do not use ident_suffix() because this is not a private identifier.
         let event_is_enabled_name = Ident::new(
-            &format!("{}_is_enabled", method.sig.ident.to_string()),
+            &format!("{}_is_enabled", method.sig.ident),
             method.sig.ident.span(),
         );
 
@@ -1225,7 +1225,7 @@ fn uuid_to_expr(uuid: &Uuid) -> syn::Expr {
     let data4_5 = bytes[13];
     let data4_6 = bytes[14];
     let data4_7 = bytes[15];
-    return parse_quote! {
+    parse_quote! {
         ::win_etw_provider::GUID {
             data1: #data1,
             data2: #data2,
@@ -1241,7 +1241,7 @@ fn uuid_to_expr(uuid: &Uuid) -> syn::Expr {
                 #data4_7,
             ]
         }
-    };
+    }
 }
 
 struct EventAttributes {
@@ -1385,10 +1385,7 @@ fn parse_event_attributes(
     }
 
     if !event_already_has_doc && enable_default_event_doc {
-        let method_doc = format!(
-            "Writes the `{}` event to the ETW log stream.",
-            method_ident.to_string()
-        );
+        let method_doc = format!("Writes the `{}` event to the ETW log stream.", method_ident);
         method_attrs.push(parse_quote!( #![doc = #method_doc] ));
     }
 
@@ -1416,7 +1413,7 @@ const IDENT_SEPARATOR: &str = "__";
 /// Builds a new identifier, based on an existing identifier.
 fn ident_suffix(ident: &Ident, suffix: &str) -> Ident {
     Ident::new(
-        &format!("{}{}{}", ident.to_string(), IDENT_SEPARATOR, suffix),
+        &format!("{}{}{}", ident, IDENT_SEPARATOR, suffix),
         ident.span(),
     )
 }

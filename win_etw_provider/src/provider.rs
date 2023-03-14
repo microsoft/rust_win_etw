@@ -277,7 +277,7 @@ impl EtwProvider {
                     max_level: AtomicU8::new(0),
                 });
                 let mut handle: evntprov::REGHANDLE = 0;
-                let stable_ptr: &mut StableProviderData = &mut *stable;
+                let stable_ptr: &mut StableProviderData = &mut stable;
                 let error = evntprov::EventRegister(
                     provider_id as *const _ as *const winapi::shared::guiddef::GUID,
                     Some(enable_callback),
@@ -370,6 +370,7 @@ impl Drop for EtwProvider {
     }
 }
 
+unsafe impl Send for EtwProvider {}
 unsafe impl Sync for EtwProvider {}
 
 /// Describes parameters for an event. This is an implementation detail, and should not be directly
