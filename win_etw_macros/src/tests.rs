@@ -10,7 +10,7 @@ use syn::buffer::Cursor;
 impl syn::parse::Parse for CompileErrors {
     fn parse(s: syn::parse::ParseStream) -> syn::Result<Self> {
         s.step(|c| {
-            let mut c: Cursor = (*c).clone();
+            let mut c: Cursor = *c;
 
             let mut errors = Vec::new();
 
@@ -61,7 +61,7 @@ fn test_worker(attrs: TokenStream, input: TokenStream, expected_errors: &[&'stat
             .spawn()
             .expect("rustfmt failed");
         let mut child_stdin = rustfmt_cmd.stdin.take().unwrap();
-        child_stdin.write(output_str.as_bytes()).unwrap();
+        child_stdin.write_all(output_str.as_bytes()).unwrap();
         drop(child_stdin);
         rustfmt_cmd.wait().unwrap();
     }
