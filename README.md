@@ -47,6 +47,13 @@ There are many tools which can create a GUID, such as:
 * From a Visual Studio command line, run `uuidgen.exe`.
 * From an Ubuntu shell, run `uuidgen`.
 
+Many tools for working with events expect [the provider's GUID to be based on the provider's name](https://learn.microsoft.com/en-us/archive/blogs/dcook/etw-provider-names-and-guids), and this technique is [recommended by Microsoft](https://learn.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-tracelogging_define_provider#provider-name-and-id). Some ways to generate a GUID compatible with these tools are:
+
+* PowerShell: `[System.Diagnostics.Tracing.EventSource]::new("YourProviderName").Guid`
+* Visual Studio 2022: From the "Debug" menu, select "Performance Profiler". Click the gear icon next to "Events Viewer". Under "Additional Providers", enter your "Provider Name", and "Provider GUID" will be automatically filled in.
+* In TraceView, from the "File" menu, select "Create New Log Session". Select "Manually Entered Control GUID or Hashed Name" and enter `*` followed by your provider name (e.g., `*YourProviderName`). Then, click "OK". In the "Format Information Source Select" window, select "Auto" and click "OK". The GUID will be displayed.
+* Additional tools and code are available in [this StackOverflow post](https://stackoverflow.com/questions/19046499/etw-provider-guid-based-on-name-net-4-0)
+
 ## Define the event provider and its events
 Add a trait definition to your source code and annotate it with the
 `#[trace_logging_provider(guid = "...")]` macro, using the GUID that you just created. The trait
