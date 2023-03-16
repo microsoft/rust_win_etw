@@ -60,6 +60,10 @@ Add a trait definition to your source code and annotate it with the
 definition is only used as input to the procedural macro; the trait is not emitted into your
 crate, and cannot be used as a normal trait.
 
+The ETW provider name, in the ETW metadata, will be
+based on the trait name. This can be overridden by specifying a name explicitly in the provider
+attribute, such as `#[trace_logging_provider(name = "YourNameHere")]`.
+
 In the trait definition, add method signatures. Each method signature defines an _event type_.
 The parameters of each method define the fields of the event type. Only a limited set of field
 types are supported (enumerated below).
