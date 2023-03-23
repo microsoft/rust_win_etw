@@ -163,6 +163,8 @@ There are other tools, such as the Windows Performance Recorder, which can captu
 * [Event Tracing for Windows (ETW) Simplified](https://support.microsoft.com/en-us/help/2593157/event-tracing-for-windows-etw-simplified)
 * [TraceLogging for Event Tracing for Windows (ETW)](https://docs.microsoft.com/en-us/windows/win32/tracelogging/trace-logging-portal)
 * [Record and View TraceLogging Events](https://docs.microsoft.com/en-us/windows/win32/tracelogging/tracelogging-record-and-display-tracelogging-events)
+* [TraceLoggingOptionGroup](https://docs.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-traceloggingoptiongroup)
+* [Provider Traits](https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits)
 * [TRACELOGGING_DEFINE_PROVIDER macro](https://learn.microsoft.com/en-us/windows/win32/api/traceloggingprovider/nf-traceloggingprovider-tracelogging_define_provider)
 
 ## Contributing
