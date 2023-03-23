@@ -262,16 +262,14 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
     // Create the provider metadata.
     // provider_ident is the identifier used in Rust source code for the generated code.
     // When writing the provider metadata, we allow the user to specify a different name to ETW.
-    {
-        let provider_name = provider_attrs
-            .provider_name
-            .as_ref()
-            .unwrap_or(&provider_ident_string);
-        output.extend(create_provider_metadata(
-            provider_name,
-            &provider_metadata_ident,
-        ));
-    }
+    let provider_name = provider_attrs
+        .provider_name
+        .as_ref()
+        .unwrap_or(&provider_ident_string);
+    output.extend(create_provider_metadata(
+        provider_name,
+        &provider_metadata_ident,
+    ));
 
     // Definitions that go inside the "impl MyProvider { ... }" block.
     let mut provider_impl_items = TokenStream::new();
@@ -574,7 +572,11 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     // We propagate the visibility of the trait definition to the structure definition.
     let vis = logging_trait.vis.clone();
-    let provider_guid_const = uuid_to_expr(&provider_attrs.uuid);
+    let provider_guid = match provider_attrs.uuid {
+        Some(uuid) => uuid,
+        None => etw_event_source_guid(provider_name),
+    };
+    let provider_guid_const = uuid_to_expr(&provider_guid);
 
     // If the input item has doc attributes, then carry them over to the output type.
     let doc_path: syn::Path = parse_quote!(doc);
@@ -646,6 +648,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
             #[allow(unused_variable)]
             pub const PROVIDER_GUID: ::win_etw_provider::GUID = #provider_guid_const;
+            pub const PROVIDER_NAME: &str = #provider_name;
         }
 
         // We intentionally generate identifiers that are not snake-case.
@@ -1093,7 +1096,7 @@ fn parse_event_field(
 /// Represents the "attribute" parameter of the `#[trace_logging_provider]` proc macro.
 #[derive(Default, Debug)]
 struct ProviderAttributes {
-    uuid: Uuid,
+    uuid: Option<Uuid>,
     provider_name: Option<String>,
     provider_group_guid: Option<Uuid>,
 }
@@ -1173,31 +1176,41 @@ impl syn::parse::Parse for ProviderAttributes {
             });
         }
 
-        // We could generate a deterministic GUID by hashing the event provider name or the
-        // signatures of the event methods. Both of those approaches have problems, unfortunately.
-        // It's best to require developers to specify a GUID.
-        //
-        // I considered generating a GUID and printing it in the error message, but I decided not
-        // to do that because it introduces non-determinism.
-        let uuid = if let Some(provider_uuid) = uuid_opt {
-            provider_uuid
-        } else {
-            errors.push(Error::new_spanned(
-                &items,
-                "The 'guid' attribute is required.
-Please generate a GUID that uniquely identfies this event provider.
-Do not use the same GUID for different event providers.
-Example: #[trace_logging_provider(guid = \"123e4567-e89b...\")]",
-            ));
-            Uuid::nil()
-        };
-
         errors.into_result(ProviderAttributes {
-            uuid,
+            uuid: uuid_opt,
             provider_name,
             provider_group_guid,
         })
     }
+}
+
+const ETW_EVENT_SOURCE_NAMESPACE: Uuid = uuid::uuid!("482c2db2-c390-47c8-87f8-1a15bfc130fb");
+
+/// Generates a Uuid from a provider name using the same algorithm as .NET's EventSource class.
+/// Many tools convert a provider name to a GUID using this algorithm.
+fn etw_event_source_guid(provider_name: &str) -> Uuid {
+    use sha1_smol::Sha1;
+
+    let provider_bytes: Vec<u8> = provider_name
+        .to_uppercase()
+        .encode_utf16()
+        .flat_map(|x| x.to_be_bytes())
+        .collect();
+
+    let mut hasher = Sha1::new();
+    hasher.update(ETW_EVENT_SOURCE_NAMESPACE.as_bytes());
+    hasher.update(&provider_bytes);
+
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(&hasher.digest().bytes()[..16]);
+
+    // .NET EventSource reads the bytes from the SHA-1 hash for the first 3 fields
+    // as little-endian, but does not set the "variant (aka type)" to the "Microsoft" value which
+    // indicates little-endian in a RFC4122-conforming UUID.  The "variant" field
+    // ends up being the "random" value copied from the from the SHA-1 hash, instead.
+    uuid::Builder::from_bytes_le(bytes)
+        .with_version(uuid::Version::Sha1)
+        .into_uuid()
 }
 
 fn uuid_to_expr(uuid: &Uuid) -> syn::Expr {
