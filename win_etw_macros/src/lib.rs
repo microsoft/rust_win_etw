@@ -659,7 +659,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
             #[allow(unused_variable)]
             pub const PROVIDER_GUID: ::win_etw_provider::GUID = #provider_guid_const;
-            pub const PROVIDER_NAME: &str = #provider_name;
+            pub const PROVIDER_NAME: &'static str = #provider_name;
         }
 
         // We intentionally generate identifiers that are not snake-case.
