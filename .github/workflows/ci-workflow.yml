@@ -13,7 +13,7 @@ jobs:
   test:
     strategy:
       matrix:
-        rust: [1.55.0, stable]
+        rust: [1.69.0, stable]
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -24,7 +24,7 @@ jobs:
         profile: minimal
         override: true
         components: rustfmt
-        
+
     - name: Build
       run: cargo build --verbose
     - name: Run tests
