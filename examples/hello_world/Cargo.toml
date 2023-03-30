@@ -11,7 +11,7 @@ edition = "2018"
 [dependencies]
 win_etw_macros = { path = "../../win_etw_macros" }
 win_etw_provider = { path = "../../win_etw_provider" }
-widestring = "^0.4"
+widestring = "^1.0"
 winapi = { version = "^0.3.8", features = ["ntstatus"] }
 
 [features]
