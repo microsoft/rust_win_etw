@@ -20,7 +20,7 @@ pub fn new_activity_id() -> Result<GUID, Error> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        Err(WindowsError(ERROR_NOT_SUPPORTED))
+        Err(Error::NotSupported)
     }
 }
 

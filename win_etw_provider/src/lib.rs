@@ -35,10 +35,17 @@ pub use data_descriptor::EventDataDescriptor;
 ///
 /// When compiling for non-Windows platforms, this Error type becomes an uninhabited type.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// A Windows (Win32) error code.
     #[cfg(target_os = "windows")]
     WindowsError(u32),
+
+    /// The operation is not supported on this platform.
+    ///
+    /// Most operations defined in this crate do nothing on non-Windows platforms. Those operations
+    /// that return information, such as the `new_activity_id()` function, use this error value.
+    NotSupported,
 }
 
 /// Allows an application to override the parameters for an event. The first parameter of each
