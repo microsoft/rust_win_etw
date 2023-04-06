@@ -476,8 +476,8 @@ mod tests {
             let span = tracing::info_span!("dude", baz = 789, later = tracing::field::Empty);
             span.in_scope(|| {
                 tracing::info!("test");
-                span.record("later", &true);
-                span.record("later", &"wait no it's a string now");
+                span.record("later", true);
+                span.record("later", "wait no it's a string now");
             });
         });
     }
