@@ -63,8 +63,9 @@ impl TracelogSubscriber {
             if enabled {
                 !0_u64
             } else {
-                // MICROSOFT_KEYWORD_CRITICAL_DATA | MICROSOFT_KEYWORD_MEASURES | MICROSOFT_KEYWORD_TELEMETRY
-                !0x0000e00000000000
+                !(win_etw_metadata::MICROSOFT_KEYWORD_CRITICAL_DATA
+                    | win_etw_metadata::MICROSOFT_KEYWORD_MEASURES
+                    | win_etw_metadata::MICROSOFT_KEYWORD_TELEMETRY)
             },
             Ordering::Relaxed,
         );

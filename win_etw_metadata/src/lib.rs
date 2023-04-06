@@ -232,3 +232,39 @@ bitflags! {
         const DATETIME_UTC = 38;
     }
 }
+
+// Event categories specified via keywords
+/// Event category for critical data (specified via keyword)
+pub const MICROSOFT_KEYWORD_CRITICAL_DATA: u64 = 0x0000_8000_0000_0000;
+/// Event category for measures (specified via keyword)
+pub const MICROSOFT_KEYWORD_MEASURES: u64 = 0x0000_4000_0000_0000;
+/// Event category for telemetry (specified via keyword)
+pub const MICROSOFT_KEYWORD_TELEMETRY: u64 = 0x0000_2000_0000_0000;
+
+// Event categories specified via event tags
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_DROP_USER_IDS: u32 = 0x0000_8000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_AGGREGATE: u32 = 0x0001_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_DROP_PII_EXCEPT_IP: u32 = 0x0002_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_COSTDEFERRED_LATENCY: u32 = 0x0004_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_CORE_DATA: u32 = 0x0008_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_INJECT_XTOKEN: u32 = 0x0010_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_REALTIME_LATENCY: u32 = 0x0020_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_NORMAL_LATENCY: u32 = 0x0040_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_CRITICAL_PERSISTENCE: u32 = 0x0080_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_NORMAL_PERSISTENCE: u32 = 0x0100_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_DROP_PII: u32 = 0x0200_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_HASH_PII: u32 = 0x0400_0000;
+/// Event category defined by WIL
+pub const MICROSOFT_EVENTTAG_MARK_PII: u32 = 0x0800_0000;

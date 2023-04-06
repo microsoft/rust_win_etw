@@ -13,7 +13,7 @@ readme = "../README.md"
 [dependencies]
 widestring = "^1.0"
 zerocopy = "^0.6"
-win_etw_metadata = { version = "^0.1.1", path = "../win_etw_metadata" }
+win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "^0.3", features = ["evntprov", "winerror", "evntrace"] }
