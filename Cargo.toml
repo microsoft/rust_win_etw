@@ -4,5 +4,6 @@ members = [
     "win_etw_logger",
     "win_etw_macros",
     "win_etw_metadata",
-    "win_etw_provider"
+    "win_etw_provider",
+    "win_etw_tracing",
 ]

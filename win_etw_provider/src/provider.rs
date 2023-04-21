@@ -9,6 +9,21 @@ use core::sync::atomic::{AtomicU8, Ordering::SeqCst};
 #[cfg(target_os = "windows")]
 use win_support::*;
 
+/// Generates a new activity ID.
+///
+/// This function is only implemented on Windows. On other platforms, it will always return `Err`.
+pub fn new_activity_id() -> Result<GUID, Error> {
+    #[cfg(target_os = "windows")]
+    {
+        win_support::new_activity_id()
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err(Error::NotSupported)
+    }
+}
+
 /// Describes the functions needed for an event provider backend. This is an implementation
 /// detail, and should not be used directly by applications.
 pub trait Provider {
@@ -260,6 +275,21 @@ mod win_support {
                         is_enabled_code
                     );
                 }
+            }
+        }
+    }
+
+    pub fn new_activity_id() -> Result<GUID, Error> {
+        unsafe {
+            let mut guid: winapi::shared::guiddef::GUID = core::mem::zeroed();
+            let error = evntprov::EventActivityIdControl(
+                evntprov::EVENT_ACTIVITY_CTRL_CREATE_ID,
+                &mut guid,
+            );
+            if error == 0 {
+                Ok(guid.into())
+            } else {
+                Err(Error::WindowsError(error))
             }
         }
     }

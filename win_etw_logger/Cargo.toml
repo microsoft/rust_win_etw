@@ -1,6 +1,6 @@
 [package]
 name = "win_etw_logger"
-version = "0.1.2"
+version = "0.1.7"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2018"
 description = "A Rust log provider which forwards events to Event Tracing for Windows (ETW)."
@@ -12,7 +12,7 @@ readme = "../README.md"
 
 [dependencies]
 log = { version = "^0.4", features = ["std"] }
-win_etw_provider = { version = "^0.1.2", path = "../win_etw_provider" }
-win_etw_macros = { version = "^0.1.2", path = "../win_etw_macros" }
-win_etw_metadata = { version = "^0.1.1", path = "../win_etw_metadata" }
+win_etw_provider = { version = "0.1.7", path = "../win_etw_provider" }
+win_etw_macros = { version = "0.1.7", path = "../win_etw_macros" }
+win_etw_metadata = { version = "0.1.2", path = "../win_etw_metadata" }
 winapi = { version = "^0.3.8" }
