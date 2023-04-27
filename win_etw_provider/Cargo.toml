@@ -14,6 +14,8 @@ readme = "../README.md"
 widestring = "^1.0"
 zerocopy = "^0.6"
 win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
+uuid = "1"
+
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "^0.3", features = ["evntprov", "winerror", "evntrace"] }
@@ -21,6 +23,7 @@ w32-error = "^1.0"
 
 [dev-dependencies]
 atomic_lazy = { git = "https://github.com/sivadeilra/atomic_lazy" }
+uuid="1"
 
 [features]
 std = []
