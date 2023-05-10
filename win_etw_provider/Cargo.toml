@@ -28,7 +28,6 @@ uuid="1"
 [features]
 std = []
 default = ["std"]
-uuid =["dep:uuid"]
 # dev is used only for development
 dev = []
 
