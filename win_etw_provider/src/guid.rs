@@ -97,6 +97,7 @@ impl From<winapi::shared::guiddef::GUID> for GUID {
     }
 }
 
+#[cfg(feature = "uuid")]
 impl From<uuid::Uuid> for GUID {
     fn from(value: uuid::Uuid) -> Self {
         let fields = value.as_fields();
@@ -109,6 +110,7 @@ impl From<uuid::Uuid> for GUID {
     }
 }
 
+#[cfg(feature = "uuid")]
 #[cfg(test)]
 mod test {
     use crate::guid::GUID;

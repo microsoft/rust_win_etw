@@ -14,7 +14,7 @@ readme = "../README.md"
 widestring = "^1.0"
 zerocopy = "^0.6"
 win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
-uuid = "1"
+uuid = {version = "1", optional=true}
 
 
 [target.'cfg(windows)'.dependencies]
@@ -28,5 +28,8 @@ uuid="1"
 [features]
 std = []
 default = ["std"]
+uuid =["dep:uuid"]
 # dev is used only for development
 dev = []
+
+
