@@ -49,11 +49,11 @@ macro_rules! guid {
 #[repr(C)]
 #[derive(Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, AsBytes, FromBytes)]
 pub struct GUID {
-    /// Contains bytes 0-3 (inclusive) of the GUID, in big-endian form.
+    /// Contains bytes 0-3 (inclusive) of the GUID.
     pub data1: u32,
-    /// Contains bytes 4-5 (inclusive) of the GUID, in big-endian form.
+    /// Contains bytes 4-5 (inclusive) of the GUID.
     pub data2: u16,
-    /// Contains bytes 6-7 (inclusive) of the GUID, in big-endian form.
+    /// Contains bytes 6-7 (inclusive) of the GUID.
     pub data3: u16,
     /// Contains bytes 8-15 (inclusive) of the GUID.
     pub data4: [u8; 8],
