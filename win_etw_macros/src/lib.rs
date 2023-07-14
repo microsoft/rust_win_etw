@@ -599,7 +599,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
 
     // Build a code fragment that registers the provider traits.
     let register_traits: TokenStream = create_register_provider_traits(
-        &provider_ident_string,
+        &provider_name,
         provider_attrs.provider_group_guid.as_ref(),
     );
 
