@@ -6,7 +6,7 @@
 pub use widestring::{U16CStr, U16CString};
 
 use crate::EventDataDescriptor;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 /// The value used in `SocketAddrV4::family` to identify IPv4 addresses.
 pub const AF_INET: u16 = 2;
@@ -51,7 +51,7 @@ impl<'a> From<&'a crate::types::SocketAddrV4> for EventDataDescriptor<'a> {
 
 /// See `[SOCKADDR_IN6_LH](https://docs.microsoft.com/en-us/windows/win32/api/ws2ipdef/ns-ws2ipdef-sockaddr_in6_lh)`.
 #[repr(C)]
-#[derive(Clone, AsBytes, FromBytes)]
+#[derive(Clone, AsBytes, FromBytes, FromZeroes)]
 pub struct SocketAddrV6 {
     /// Address family identifier.
     pub family: u16,
