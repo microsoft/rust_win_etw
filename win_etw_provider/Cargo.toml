@@ -12,7 +12,7 @@ readme = "../README.md"
 
 [dependencies]
 widestring = "^1.0"
-zerocopy = "^0.6"
+zerocopy = "0.7.32"
 win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
 uuid = {version = "1", optional = true}
 
