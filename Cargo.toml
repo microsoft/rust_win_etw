@@ -1,4 +1,6 @@
 [workspace]
+resolver = "2"
+
 members = [
     "examples/hello_world",
     "win_etw_logger",
