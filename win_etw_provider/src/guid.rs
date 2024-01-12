@@ -1,4 +1,4 @@
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 /// Initializes a `GUID` from literal values.
 #[macro_export]
@@ -47,7 +47,7 @@ macro_rules! guid {
 /// defined byte representation, so converting between different implementations of `GUID` is
 /// not a problem.
 #[repr(C)]
-#[derive(Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, AsBytes, FromBytes)]
+#[derive(Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, AsBytes, FromBytes, FromZeroes)]
 pub struct GUID {
     /// Contains bytes 0-3 (inclusive) of the GUID.
     pub data1: u32,
