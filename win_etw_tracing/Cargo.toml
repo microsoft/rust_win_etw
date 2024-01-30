@@ -13,7 +13,7 @@ default = ["tracing-log"]
 [dependencies]
 bytes = "1"
 tracing = "0.1"
-tracing-log = { version = "0.1", optional = true, default-features = false, features = ["log-tracer", "std"] }
+tracing-log = { version = "0.2", optional = true, default-features = false, features = ["log-tracer", "std"] }
 tracing-subscriber = "0.3.7"
 win_etw_metadata = { path = "../win_etw_metadata", version = "0.1.2" }
 win_etw_provider = { path = "../win_etw_provider", version = "0.1.9" }
