@@ -1,6 +1,6 @@
 [package]
 name = "win_etw_macros"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2018"
 description = "Enables apps to report events to Event Tracing for Windows (ETW)."
