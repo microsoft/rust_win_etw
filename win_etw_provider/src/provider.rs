@@ -1,7 +1,6 @@
 use crate::guid::GUID;
 use crate::Level;
 use crate::{Error, EventDataDescriptor};
-#[cfg(feature = "no_std")]
 use alloc::boxed::Box;
 use core::convert::TryFrom;
 use core::pin::Pin;
