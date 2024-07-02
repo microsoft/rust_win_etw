@@ -7,11 +7,12 @@ description = "Enables apps to report events to Event Tracing for Windows (ETW).
 license = "Apache-2.0 OR MIT"
 homepage = "https://github.com/microsoft/rust_win_etw"
 readme = "../README.md"
+rust-version = "1.77"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-widestring = "^1.0"
+widestring = {version = "^1.0", default-features = false, features = ["alloc"]}
 zerocopy = { version = "0.7.32", features = ["derive"] }
 win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
 uuid = {version = "1", optional = true}
@@ -26,6 +27,7 @@ uuid = "1"
 
 [features]
 std = []
-default = ["std"]
+default = ["no_std"]
+no_std = []
 # dev is used only for development
 dev = []

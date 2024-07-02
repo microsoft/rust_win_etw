@@ -1,6 +1,7 @@
 use crate::guid::GUID;
 use crate::Level;
 use crate::{Error, EventDataDescriptor};
+use alloc::boxed::Box;
 use core::convert::TryFrom;
 use core::pin::Pin;
 use core::ptr::null;

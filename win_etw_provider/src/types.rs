@@ -30,9 +30,8 @@ pub struct SocketAddrV4 {
     pub zero: [u8; 8],
 }
 
-#[cfg(feature = "std")]
-impl From<&std::net::SocketAddrV4> for SocketAddrV4 {
-    fn from(value: &std::net::SocketAddrV4) -> Self {
+impl From<&core::net::SocketAddrV4> for SocketAddrV4 {
+    fn from(value: &core::net::SocketAddrV4) -> Self {
         let port = value.port();
         Self {
             family: AF_INET,
@@ -65,9 +64,8 @@ pub struct SocketAddrV6 {
     pub scope_id: [u8; 4],
 }
 
-#[cfg(feature = "std")]
-impl From<&std::net::SocketAddrV6> for SocketAddrV6 {
-    fn from(value: &std::net::SocketAddrV6) -> Self {
+impl From<&core::net::SocketAddrV6> for SocketAddrV6 {
+    fn from(value: &core::net::SocketAddrV6) -> Self {
         Self {
             family: AF_INET6,
             port: value.port().to_be_bytes(),

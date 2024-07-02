@@ -6,6 +6,8 @@
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 #![cfg_attr(not(windows), allow(unused))]
 
+extern crate alloc;
+
 mod guid;
 mod provider;
 
