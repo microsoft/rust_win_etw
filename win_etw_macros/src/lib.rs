@@ -230,7 +230,7 @@ pub fn trace_logging_provider(
 
 /// Allows you to create ETW Trace Logging Providers in a Windows driver kernel-mode context. See the module docs for more detailed
 /// instructions for this macro.
-#[cfg(feature = "windows_drivers")]
+#[cfg(all(not(feature = "windows_apps"), feature = "windows_drivers"))]
 #[proc_macro_attribute]
 pub fn trace_logging_provider_kernel(
     attr: proc_macro::TokenStream,
