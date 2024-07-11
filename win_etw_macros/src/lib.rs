@@ -224,14 +224,27 @@ pub fn trace_logging_provider(
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     // let logging_trait = parse_macro_input!(input as syn::ItemTrait);
-    #[cfg(not(feature = "windows_drivers"))]
-    let output = trace_logging_events_core(attr.into(), input.into());
-    #[cfg(feature = "windows_drivers")]
-    let output = trace_logging_events_core_drivers(attr.into(), input.into());
+    let output = trace_logging_events_core::<false>(attr.into(), input.into());
     output.into()
 }
 
-fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> TokenStream {
+/// Allows you to create ETW Trace Logging Providers in a Windows driver kernel-mode context. See the module docs for more detailed
+/// instructions for this macro.
+#[cfg(feature = "windows_drivers")]
+#[proc_macro_attribute]
+pub fn trace_logging_provider_kernel(
+    attr: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    // let logging_trait = parse_macro_input!(input as syn::ItemTrait);
+    let output = trace_logging_events_core::<true>(attr.into(), input.into());
+    output.into()
+}
+
+fn trace_logging_events_core<const KERNEL_MODE: bool>(
+    attr: TokenStream,
+    item_tokens: TokenStream,
+) -> TokenStream {
     let mut errors: Vec<Error> = Vec::new();
 
     let logging_trait: syn::ItemTrait = match syn::parse2(item_tokens) {
@@ -606,10 +619,16 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         provider_attrs.provider_group_guid.as_ref(),
     );
 
+    let provider_type = if KERNEL_MODE {
+        quote! { win_etw_provider::EtwDriverProvider }
+    } else {
+        quote! { win_etw_provider::EtwProvider }
+    };
+
     output.extend(quote! {
         #( #provider_doc_attrs )*
         #vis struct #provider_ident {
-            provider: ::core::option::Option<::win_etw_provider::EtwProvider>,
+            provider: ::core::option::Option<#provider_type>,
         }
 
         impl #provider_ident {
@@ -624,7 +643,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             /// event consumers, etc. Applications should only create event sources during process
             /// initialization, and should always reuse them, never re-creating them.
             pub fn new() -> Self {
-                let provider = match ::win_etw_provider::EtwProvider::new(&Self::PROVIDER_GUID) {
+                let provider = match #provider_type::new(&Self::PROVIDER_GUID) {
                     Ok(mut provider) => {
                         #[cfg(target_os = "windows")]
                         {
@@ -650,7 +669,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             /// initialization, and should always reuse them, never re-creating them.
             pub fn new_err() -> ::core::result::Result<Self, ::win_etw_provider::Error> {
                 Ok(Self {
-                    provider: Some(::win_etw_provider::EtwProvider::new(&Self::PROVIDER_GUID)?),
+                    provider: Some(#provider_type::new(&Self::PROVIDER_GUID)?),
                 })
             }
 
@@ -675,453 +694,6 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
     output.extend(errors.into_iter().map(|e| e.to_compile_error()));
     output
 }
-
-
-fn trace_logging_events_core_drivers(attr: TokenStream, item_tokens: TokenStream) -> TokenStream {
-    let mut errors: Vec<Error> = Vec::new();
-
-    let logging_trait: syn::ItemTrait = match syn::parse2(item_tokens) {
-        Err(e) => {
-            return e.to_compile_error();
-        }
-        Ok(syn::Item::Trait(t)) => t,
-        Ok(syn::Item::Mod(m)) => {
-            return Error::new_spanned(&m, "Modules are not yet supported, but thanks for asking.")
-                .to_compile_error();
-        }
-        Ok(unrecognized) => {
-            return Error::new_spanned(
-                &unrecognized,
-                "The #[trace_logging_provider] attribute cannot be used with this kind of item.",
-            )
-            .to_compile_error();
-        }
-    };
-
-    let provider_attrs: ProviderAttributes = match syn::parse2(attr) {
-        Ok(p) => p,
-        Err(e) => {
-            errors.push(e);
-            ProviderAttributes::default()
-        }
-    };
-
-    // provider_ident is the identifier used in Rust source code for the generated provider type.
-    let provider_ident = &logging_trait.ident;
-    let provider_ident_string = provider_ident.to_string();
-
-    let wk = WellKnownTypes::new();
-
-    let mut output = TokenStream::new();
-
-    let provider_metadata_ident = Ident::new(
-        &format!("{}_PROVIDER_METADATA", provider_ident_string),
-        provider_ident.span(),
-    );
-
-    // Create the provider metadata.
-    // provider_ident is the identifier used in Rust source code for the generated code.
-    // When writing the provider metadata, we allow the user to specify a different name to ETW.
-    let provider_name = provider_attrs
-        .provider_name
-        .as_ref()
-        .unwrap_or(&provider_ident_string);
-    output.extend(create_provider_metadata(
-        provider_name,
-        &provider_metadata_ident,
-    ));
-
-    // Definitions that go inside the "impl MyProvider { ... }" block.
-    let mut provider_impl_items = TokenStream::new();
-
-    // To make this simple, we either require all events to be labeled
-    // with an event id or autogenerated.
-    let mut event_ids_auto_generated = true;
-    let mut event_id_mappings = HashMap::new();
-
-    for (method_index, method) in logging_trait
-        .items
-        .iter()
-        .filter_map(|item| {
-            if let syn::TraitItem::Method(m) = item {
-                Some(m)
-            } else {
-                None
-            }
-        })
-        .enumerate()
-    {
-        let event_index = method_index as u16;
-
-        // Check requirements for the method signature. If the requirements are not met, we
-        // emit an error but keep going. This allows us to report as many errors as possible in
-        // each build, rather than having errors "unlocked" one by one.
-        if method.sig.asyncness.is_some() {
-            errors.push(Error::new_spanned(
-                method,
-                "Async event methods are not supported.",
-            ));
-        }
-        if method.sig.unsafety.is_some() {
-            errors.push(Error::new_spanned(
-                method,
-                "Event methods should not be marked unsafe.",
-            ));
-        }
-        if !method.sig.generics.params.is_empty() {
-            errors.push(Error::new_spanned(
-                method,
-                "Generic event methods are not supported.",
-            ));
-        }
-        match &method.sig.output {
-            syn::ReturnType::Default => {}
-            _ => {
-                errors.push(Error::new_spanned(
-                    method,
-                    "Event methods must not return data.",
-                ));
-            }
-        }
-        if let Some(block) = method.default.as_ref() {
-            errors.push(Error::new_spanned(
-                block,
-                "Event methods must not contain an implementation.",
-            ));
-        }
-
-        let event_name: String = method.sig.ident.to_string();
-
-        // Here we build the data descriptor array. The data descriptor array is constructed on
-        // the stack, and has a statically-known size. It contains pointers to data fields. The
-        // event metadata describes the order and type of the data pointed-to by the data
-        // descriptors.
-        //
-        // For self-describing events (TraceLogging), the first two items in the data descriptor
-        // array identify the provider metadata and the event metadata.
-        let mut data_descriptor_array = TokenStream::new();
-
-        // See comments in traceloggingprovider.h, around line 2300, which describe the
-        // encoding of the event mdata.
-        let mut event_metadata: Vec<Expr> = Vec::new();
-        event_metadata.push(parse_quote! { 0 }); // reserve space for the size (byte 0)
-        event_metadata.push(parse_quote! { 0 }); // reserve space for the size (byte 1)
-        event_metadata.push(parse_quote! { 0 }); // no extensions
-        append_utf8_str_chars(&mut event_metadata, &event_name);
-
-        // Some fields require running some code before building the data descriptors, so we
-        // collect statements here.
-        let mut statements = TokenStream::new();
-
-        // Each parameter (except for &self) becomes an event field.
-        let mut found_receiver = false;
-
-        // sig is the function signature for the function that we will generate for this event.
-        let mut sig = method.sig.clone();
-
-        for param in sig.inputs.iter_mut() {
-            let param_span = param.span();
-            match param {
-                FnArg::Receiver(_) => {
-                    errors.push(Error::new_spanned(param, "Event methods should not provide any receiver arguments (&self, &mut self, etc.)."));
-                    found_receiver = true;
-                }
-
-                FnArg::Typed(param_typed) => {
-                    let mut event_attr: Option<syn::Attribute> = None;
-                    param_typed.attrs.retain(|a| {
-                        if a.path == parse_quote!(event) {
-                            event_attr = Some(a.clone());
-                            false
-                        } else if a.path == parse_quote!(doc) {
-                            true
-                        } else {
-                            errors.push(Error::new_spanned(
-                                a,
-                                "This attribute is not permitted on event fields.",
-                            ));
-                            true
-                        }
-                    });
-                    let param_name: &Ident = match &*param_typed.pat {
-                        syn::Pat::Ident(ref name) => &name.ident,
-                        _ => {
-                            errors.push(Error::new(
-                                param.span(),
-                                "Only ordinary parameter patterns are supported on event methods.",
-                            ));
-                            continue;
-                        }
-                    };
-
-                    if parse_event_field(
-                        &mut errors,
-                        &wk,
-                        event_attr.as_ref(),
-                        param_span,
-                        param_name,
-                        &mut param_typed.ty,
-                        &mut data_descriptor_array,
-                        &mut event_metadata,
-                        &mut statements,
-                    )
-                    .is_err()
-                    {
-                        errors.push(Error::new_spanned(
-                            &param,
-                            "This type is not supported for event parameters.",
-                        ));
-                    }
-                }
-            }
-        }
-
-        // We require that every function declare a '&self' receiver parameter.
-        if !found_receiver {
-            sig.inputs.insert(0, parse_quote!(&self));
-        }
-
-        // Insert the "options" argument.
-        sig.inputs.insert(
-            1,
-            parse_quote!(options: core::option::Option<&::win_etw_provider::EventOptions>),
-        );
-
-        // Now that we have processed all parameters ("fields"), we can finish constructing
-        // the per-event metadata.
-        let event_metadata_len = event_metadata.len();
-        if event_metadata_len > 0xffff {
-            errors.push(Error::new(
-                method.span(),
-                "Event metadata is too large to encode; reduce the complexity of this event.",
-            ));
-            continue;
-        }
-        let event_metadata_len_b0 = (event_metadata_len & 0xff) as u8;
-        let event_metadata_len_b1 = (event_metadata_len >> 8) as u8;
-        event_metadata[0] = parse_quote! { #event_metadata_len_b0 };
-        event_metadata[1] = parse_quote! { #event_metadata_len_b1 };
-
-        let event_attrs = parse_event_attributes(&mut errors, &method.sig.ident, &method.attrs);
-
-        // Generate the event descriptor for this event.
-        // This is a static variable. The name is exactly the name of the event.
-        let event_level = event_attrs.level;
-        let event_opcode = event_attrs.opcode;
-        let event_task = event_attrs.task;
-        let potential_event_id = event_attrs.event_id;
-        let event_keyword = event_attrs
-            .keyword
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| parse_quote!(0));
-
-        // We use the first entry to see if we have user provided IDs
-        // or we are generating one.
-        if event_index == 0 {
-            event_ids_auto_generated = potential_event_id.is_none();
-        }
-
-        // We have some events with user provided id and some without.
-        if event_ids_auto_generated != potential_event_id.is_none() {
-            errors.push(Error::new(
-                method.span(),
-                "Event ids must be set for all events, or for none.",
-            ));
-        }
-
-        let event_id = potential_event_id.unwrap_or(event_index);
-
-        // Only care about #[event(id = #)] types so we don't get
-        // confusing messages when forget to add an id for some
-        // event.
-        if potential_event_id.is_some() {
-            let identifier = method.sig.ident.to_string();
-            if let Some(previous) = event_id_mappings.get(&event_id) {
-                errors.push(Error::new(
-                    method.span(),
-                    format!(
-                        "Event id {} has already been defined on {}.",
-                        event_id, previous
-                    ),
-                ));
-            }
-            event_id_mappings.insert(event_id, identifier);
-        }
-
-        // an expression which generates EventDescriptor
-        let event_descriptor = quote! {
-            ::win_etw_provider::EventDescriptor {
-                id: #event_id,
-                version: 0,
-                channel: 11,
-                level: #event_level,
-                opcode: #event_opcode,
-                task: #event_task,
-                keyword: #event_keyword,
-            };
-        };
-
-        let event_attrs_method_attrs = &event_attrs.method_attrs;
-
-        // Generate the `${name}_is_enabled` function for this event.
-        // We do not use ident_suffix() because this is not a private identifier.
-        let event_is_enabled_name = Ident::new(
-            &format!("{}_is_enabled", method.sig.ident),
-            method.sig.ident.span(),
-        );
-
-        // Build the method that implements this event.
-        provider_impl_items.extend(quote!{
-            #( #event_attrs_method_attrs )*
-            #[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
-            pub #sig
-            {
-                #[cfg(target_os = "windows")]
-                {
-                    use ::win_etw_provider::EventDataDescriptor;
-
-                    // This places the EVENT_METADATA into a read-only linker section, properly
-                    // ordered with respect to TRACE_LOGGING_METADATA and other related sections.
-                    #[link_section = ".rdata$etw1"]
-                    #[used]
-                    static EVENT_METADATA: [u8; #event_metadata_len] = [ #( #event_metadata, )* ];
-
-                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = #event_descriptor;
-
-                    if let Some(opts) = options {
-                        if let Some(level) = opts.level {
-                            event_descriptor.level = level;
-                        }
-                    }
-
-                    #statements
-
-                    let data_descriptors = [
-                        EventDataDescriptor::for_provider_metadata(&#provider_metadata_ident[..]),
-                        EventDataDescriptor::for_event_metadata(&EVENT_METADATA[..]),
-                        #data_descriptor_array
-                    ];
-                    ::win_etw_provider::Provider::write(&self.provider,
-                        options,
-                        &event_descriptor,
-                        &data_descriptors,
-                    );
-                }
-            }
-
-            pub fn #event_is_enabled_name(&self, level: ::core::option::Option<::win_etw_provider::Level>) -> bool {
-                #[cfg(target_os = "windows")]
-                {
-                    let mut event_descriptor: ::win_etw_provider::EventDescriptor = #event_descriptor;
-                    if let Some(level) = level {
-                        event_descriptor.level = level;
-                    }
-
-                    ::win_etw_provider::Provider::is_event_enabled(
-                        &self.provider,
-                        &event_descriptor)
-                }
-                #[cfg(not(target_os = "windows"))]
-                {
-                    false
-                }
-            }
-        });
-    }
-
-    // We propagate the visibility of the trait definition to the structure definition.
-    let vis = logging_trait.vis.clone();
-    let provider_guid = match provider_attrs.uuid {
-        Some(uuid) => uuid,
-        None => etw_event_source_guid(provider_name),
-    };
-    let provider_guid_const = uuid_to_expr(&provider_guid);
-
-    // If the input item has doc attributes, then carry them over to the output type.
-    let doc_path: syn::Path = parse_quote!(doc);
-    let provider_doc_attrs = logging_trait
-        .attrs
-        .iter()
-        .filter(|a| a.path == doc_path)
-        .collect::<Vec<_>>();
-
-    // Build a code fragment that registers the provider traits.
-    let register_traits: TokenStream = create_register_provider_traits(
-        &provider_name,
-        provider_attrs.provider_group_guid.as_ref(),
-    );
-
-    output.extend(quote! {
-        #( #provider_doc_attrs )*
-        #vis struct #provider_ident {
-            provider: ::core::option::Option<::win_etw_provider::EtwDriverProvider>,
-        }
-
-        impl #provider_ident {
-            /// Creates (registers) a new instance of this provider. If registration fails,
-            /// returns a "null" provider. This prevents problems with event logging from
-            /// disrupting the normal operation of applications.
-            ///
-            /// On non-Windows platforms, this function always returns a null provider.
-            ///
-            /// Creating an event source is a costly operation, because it requires contacting the
-            /// event manager, allocating event buffers, potentially receiving callbacks from
-            /// event consumers, etc. Applications should only create event sources during process
-            /// initialization, and should always reuse them, never re-creating them.
-            pub fn new() -> Self {
-                let provider = match ::win_etw_provider::EtwDriverProvider::new(&Self::PROVIDER_GUID) {
-                    Ok(mut provider) => {
-                        #[cfg(target_os = "windows")]
-                        {
-                            #register_traits
-                        }
-
-                        Some(provider)
-                    }
-                    Err(_) => None,
-                };
-                Self { provider }
-            }
-
-            /// Creates (registers) a new instance of this provider. If registration fails, then
-            /// this method returns a "null" provider.
-            ///
-            /// On non-Windows platforms, this function always returns `Ok`, containing a null
-            /// provider.
-            ///
-            /// Creating an event source is a costly operation, because it requires contacting the
-            /// event manager, allocating event buffers, potentially receiving callbacks from
-            /// event consumers, etc. Applications should only create event sources during process
-            /// initialization, and should always reuse them, never re-creating them.
-            pub fn new_err() -> ::core::result::Result<Self, ::win_etw_provider::Error> {
-                Ok(Self {
-                    provider: Some(::win_etw_provider::EtwDriverProvider::new(&Self::PROVIDER_GUID)?),
-                })
-            }
-
-            /// Creates a new "null" instance of the provider. All events written to this provider
-            /// are discarded.
-            pub fn null() -> Self {
-                Self { provider: None }
-            }
-
-            #[allow(unused_variable)]
-            pub const PROVIDER_GUID: ::win_etw_provider::GUID = #provider_guid_const;
-            pub const PROVIDER_NAME: &'static str = #provider_name;
-        }
-
-        // We intentionally generate identifiers that are not snake-case.
-        #[allow(non_snake_case)]
-        impl #provider_ident {
-            #provider_impl_items
-        }
-    });
-
-    output.extend(errors.into_iter().map(|e| e.to_compile_error()));
-    output
-}
-
 
 /// Creates a fragment of code (statements) which will register the
 /// provider traits for this provider.
