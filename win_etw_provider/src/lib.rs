@@ -10,6 +10,10 @@ extern crate alloc;
 
 mod guid;
 mod provider;
+#[cfg(feature = "windows_drivers")]
+mod driver_provider;
+#[cfg(feature = "windows_drivers")]
+pub use driver_provider::EtwDriverProvider;
 
 pub mod types;
 

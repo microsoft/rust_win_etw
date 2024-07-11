@@ -97,6 +97,19 @@ impl From<winapi::shared::guiddef::GUID> for GUID {
     }
 }
 
+#[cfg(feature = "windows_drivers")]
+impl From<wdk_sys::GUID> for GUID {
+    fn from(value: wdk_sys::GUID) -> Self {
+        Self {
+            data1: value.Data1,
+            data2: value.Data2,
+            data3: value.Data3,
+            data4: value.Data4,
+        }
+    }
+}
+
+
 #[cfg(feature = "uuid")]
 impl From<uuid::Uuid> for GUID {
     fn from(value: uuid::Uuid) -> Self {
