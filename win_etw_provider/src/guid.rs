@@ -97,7 +97,7 @@ impl From<winapi::shared::guiddef::GUID> for GUID {
     }
 }
 
-#[cfg(all(not(feature = "windows_apps"), feature = "windows_drivers"))]
+#[cfg(all(target_os = "windows", not(feature = "windows_apps"), feature = "windows_drivers"))]
 impl From<wdk_sys::GUID> for GUID {
     fn from(value: wdk_sys::GUID) -> Self {
         Self {
