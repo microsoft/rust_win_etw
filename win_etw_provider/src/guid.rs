@@ -1,6 +1,6 @@
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
 #[cfg(feature = "uuid")]
 use crate::alloc::borrow::ToOwned;
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 /// Initializes a `GUID` from literal values.
 #[macro_export]
