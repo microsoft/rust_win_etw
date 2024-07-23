@@ -8,10 +8,10 @@
 
 extern crate alloc;
 
-mod guid;
-mod provider;
 #[cfg(all(not(feature = "windows_apps"), feature = "windows_drivers"))]
 mod driver_provider;
+mod guid;
+mod provider;
 #[cfg(all(not(feature = "windows_apps"), feature = "windows_drivers"))]
 pub use driver_provider::EtwDriverProvider;
 

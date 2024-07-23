@@ -1,5 +1,5 @@
 //! Provides an ETW provider that uses Windows kernel-mode APIs and types to implement ETW tracing.
-//! 
+//!
 //! This provider is designed to match the behavior of the standard user-mode ETW provider.
 
 use crate::guid::GUID;
