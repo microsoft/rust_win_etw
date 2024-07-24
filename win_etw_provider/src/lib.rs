@@ -8,11 +8,19 @@
 
 extern crate alloc;
 
-#[cfg(all(not(feature = "windows_apps"), feature = "windows_drivers"))]
+#[cfg(all(
+    not(feature = "windows_apps"),
+    feature = "windows_drivers",
+    target_os = "windows"
+))]
 mod driver_provider;
 mod guid;
 mod provider;
-#[cfg(all(not(feature = "windows_apps"), feature = "windows_drivers"))]
+#[cfg(all(
+    not(feature = "windows_apps"),
+    feature = "windows_drivers",
+    target_os = "windows"
+))]
 pub use driver_provider::EtwDriverProvider;
 
 pub mod types;

@@ -1,6 +1,7 @@
-//! Provides an ETW provider that uses Windows kernel-mode APIs and types to implement ETW tracing.
-//!
-//! This provider is designed to match the behavior of the standard user-mode ETW provider.
+//! Provides an ETW provider that uses Windows kernel-mode APIs and types to implement ETW tracing.  
+//! The `windows-driver` feature must be activated to compile.
+//! This provider is designed to match the behavior of the standard user-mode ETW provider and is
+//! largely copied from that module, with changes to use wdk_sys equivalent functions and values.
 
 use crate::guid::GUID;
 use crate::EventDescriptor;
@@ -14,31 +15,19 @@ use core::ptr::null;
 use core::sync::atomic::{AtomicU8, Ordering::SeqCst};
 use wdk_sys::NT_SUCCESS;
 
-#[cfg(target_os = "windows")]
 use win_support::*;
 
 /// Generates a new activity ID.
 ///
-/// This function is only implemented on Windows. On other platforms, it will always return `Err`.
+/// This function is only implemented on Windows.
 pub fn new_activity_id() -> Result<GUID, Error> {
-    #[cfg(target_os = "windows")]
-    {
-        win_support::new_activity_id()
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Err(Error::NotSupported)
-    }
+    win_support::new_activity_id()
 }
 
 /// Implements `Provider` by registering with ETW.
 pub struct EtwDriverProvider {
-    #[cfg(target_os = "windows")]
     handle: wdk_sys::REGHANDLE,
 
-    #[cfg(target_os = "windows")]
-    // #[allow(dead_code)] // Needed for lifetime control
     stable: Pin<Box<StableProviderData>>,
 }
 
@@ -50,47 +39,44 @@ impl Provider for EtwDriverProvider {
         descriptor: &EventDescriptor,
         data: &[EventDataDescriptor<'_>],
     ) {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe {
-                let mut activity_id_ptr = null();
-                let mut related_activity_id_ptr = null();
+        unsafe {
+            let mut activity_id_ptr = null();
+            let mut related_activity_id_ptr = null();
 
-                let mut event_descriptor = wdk_sys::EVENT_DESCRIPTOR {
-                    Id: descriptor.id,
-                    Version: descriptor.version,
-                    Channel: descriptor.channel,
-                    Level: descriptor.level.0,
-                    Opcode: descriptor.opcode,
-                    Task: descriptor.task,
-                    Keyword: descriptor.keyword,
-                };
+            let mut event_descriptor = wdk_sys::EVENT_DESCRIPTOR {
+                Id: descriptor.id,
+                Version: descriptor.version,
+                Channel: descriptor.channel,
+                Level: descriptor.level.0,
+                Opcode: descriptor.opcode,
+                Task: descriptor.task,
+                Keyword: descriptor.keyword,
+            };
 
-                if let Some(options) = options {
-                    if let Some(id) = options.activity_id.as_ref() {
-                        activity_id_ptr = id as *const GUID as *const wdk_sys::GUID;
-                    }
-                    if let Some(id) = options.related_activity_id.as_ref() {
-                        related_activity_id_ptr = id as *const GUID as *const wdk_sys::GUID;
-                    }
-                    if let Some(level) = options.level {
-                        event_descriptor.Level = level.0;
-                    }
+            if let Some(options) = options {
+                if let Some(id) = options.activity_id.as_ref() {
+                    activity_id_ptr = id as *const GUID as *const wdk_sys::GUID;
                 }
-
-                let error = wdk_sys::ntddk::EtwWriteEx(
-                    self.handle,
-                    &event_descriptor as *const wdk_sys::_EVENT_DESCRIPTOR,
-                    0,                       // filter
-                    0,                       // flags
-                    activity_id_ptr,         // activity id
-                    related_activity_id_ptr, // related activity id
-                    data.len() as u32,
-                    data.as_ptr() as *mut wdk_sys::_EVENT_DATA_DESCRIPTOR,
-                );
-                if !NT_SUCCESS(error) {
-                    write_failed(error as u32)
+                if let Some(id) = options.related_activity_id.as_ref() {
+                    related_activity_id_ptr = id as *const GUID as *const wdk_sys::GUID;
                 }
+                if let Some(level) = options.level {
+                    event_descriptor.Level = level.0;
+                }
+            }
+
+            let error = wdk_sys::ntddk::EtwWriteEx(
+                self.handle,
+                &event_descriptor as *const wdk_sys::_EVENT_DESCRIPTOR,
+                0,                       // filter
+                0,                       // flags
+                activity_id_ptr,         // activity id
+                related_activity_id_ptr, // related activity id
+                data.len() as u32,
+                data.as_ptr() as *mut wdk_sys::_EVENT_DATA_DESCRIPTOR,
+            );
+            if !NT_SUCCESS(error) {
+                write_failed(error as u32)
             }
         }
     }
@@ -99,34 +85,20 @@ impl Provider for EtwDriverProvider {
     // write_transfer
 
     fn is_enabled(&self, level: u8, keyword: u64) -> bool {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe { wdk_sys::ntddk::EtwProviderEnabled(self.handle, level, keyword) != 0 }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            false
-        }
+        unsafe { wdk_sys::ntddk::EtwProviderEnabled(self.handle, level, keyword) != 0 }
     }
 
     fn is_event_enabled(&self, event_descriptor: &EventDescriptor) -> bool {
-        #[cfg(target_os = "windows")]
-        {
-            if false {
-                unsafe {
-                    wdk_sys::ntddk::EtwEventEnabled(
-                        self.handle,
-                        event_descriptor as *const _ as *const wdk_sys::EVENT_DESCRIPTOR,
-                    ) != 0
-                }
-            } else {
-                let max_level = self.stable.as_ref().max_level.load(SeqCst);
-                event_descriptor.level.0 <= max_level
+        if false {
+            unsafe {
+                wdk_sys::ntddk::EtwEventEnabled(
+                    self.handle,
+                    event_descriptor as *const _ as *const wdk_sys::EVENT_DESCRIPTOR,
+                ) != 0
             }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            false
+        } else {
+            let max_level = self.stable.as_ref().max_level.load(SeqCst);
+            event_descriptor.level.0 <= max_level
         }
     }
 }
@@ -139,14 +111,10 @@ fn write_failed(_error: u32) {
     }
 }
 
-#[cfg(target_os = "windows")]
 mod win_support {
 
-    pub use winapi::shared::evntprov;
-    pub use winapi::shared::evntrace;
-    pub use winapi::shared::winerror;
-
     use super::*;
+    pub use winapi::shared::evntrace;
 
     /// This data is stored in a Box, so that it has a stable address.
     /// It is used to coordinate with ETW; ETW runs callbacks that need a stable pointer.
@@ -155,7 +123,7 @@ mod win_support {
         pub(crate) max_level: AtomicU8,
     }
 
-    /// See [PENABLECALLBACK](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nc-evntprov-penablecallback).
+    /// See [ETWENABLECALLBACK](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nc-wdm-etwenablecallback).
     pub(crate) unsafe extern "C" fn enable_callback(
         _source_id: *const wdk_sys::GUID,
         is_enabled_code: u32,
@@ -225,7 +193,7 @@ mod win_support {
         unsafe {
             let mut guid: wdk_sys::GUID = core::mem::zeroed();
             let error = wdk_sys::ntddk::EtwActivityIdControl(
-                evntprov::EVENT_ACTIVITY_CTRL_CREATE_ID,
+                wdk_sys::EVENT_ACTIVITY_CTRL_CREATE_ID,
                 &mut guid,
             );
             if error == 0 {
@@ -240,61 +208,47 @@ mod win_support {
 impl EtwDriverProvider {
     /// Registers an event provider with ETW.
     ///
-    /// The implementation uses `[EventWriteEx](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventwriteex)`.
+    /// The implementation uses `[EtwRegister](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-etwregister)`.
     pub fn new(provider_id: &GUID) -> Result<EtwDriverProvider, Error> {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe {
-                let mut stable = Box::pin(StableProviderData {
-                    max_level: AtomicU8::new(0),
-                });
-                let mut handle: wdk_sys::REGHANDLE = 0;
-                let stable_ptr: &mut StableProviderData = &mut stable;
-                let error = wdk_sys::ntddk::EtwRegister(
-                    provider_id as *const _ as *const wdk_sys::GUID,
-                    Some(enable_callback),
-                    stable_ptr as *mut StableProviderData as wdk_sys::PVOID,
-                    &mut handle,
-                );
-                if error != 0 {
-                    Err(Error::WindowsError(error as u32))
-                } else {
-                    Ok(EtwDriverProvider { handle, stable })
-                }
+        unsafe {
+            let mut stable = Box::pin(StableProviderData {
+                max_level: AtomicU8::new(0),
+            });
+            let mut handle: wdk_sys::REGHANDLE = 0;
+            let stable_ptr: &mut StableProviderData = &mut stable;
+            let error = wdk_sys::ntddk::EtwRegister(
+                provider_id as *const _ as *const wdk_sys::GUID,
+                Some(enable_callback),
+                stable_ptr as *mut StableProviderData as wdk_sys::PVOID,
+                &mut handle,
+            );
+            if error != 0 {
+                Err(Error::WindowsError(error as u32))
+            } else {
+                Ok(EtwDriverProvider { handle, stable })
             }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Ok(EtwDriverProvider {})
         }
     }
 
     /// See TraceLoggingRegisterEx in traceloggingprovider.h.
     /// This registers provider metadata.
     pub fn register_provider_metadata(&mut self, provider_metadata: &[u8]) -> Result<(), Error> {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe {
-                let error = wdk_sys::ntddk::EtwSetInformation(
-                    self.handle,
-                    2,
-                    provider_metadata.as_ptr() as wdk_sys::PVOID,
-                    u32::try_from(provider_metadata.len()).unwrap(),
-                );
-                if error != 0 {
-                    Err(Error::WindowsError(error as u32))
-                } else {
-                    #[cfg(feature = "dev")]
-                    {
-                        eprintln!("register_provider_metadata: succeeded");
-                    }
-                    Ok(())
+        unsafe {
+            let error = wdk_sys::ntddk::EtwSetInformation(
+                self.handle,
+                2,
+                provider_metadata.as_ptr() as wdk_sys::PVOID,
+                u32::try_from(provider_metadata.len()).unwrap(),
+            );
+            if error != 0 {
+                Err(Error::WindowsError(error as u32))
+            } else {
+                #[cfg(feature = "dev")]
+                {
+                    eprintln!("register_provider_metadata: succeeded");
                 }
+                Ok(())
             }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Ok(())
         }
     }
 
@@ -305,40 +259,30 @@ impl EtwDriverProvider {
     ///
     /// See [Provider Traits](https://docs.microsoft.com/en-us/windows/win32/etw/provider-traits).
     pub fn set_provider_traits(&mut self, provider_traits: &[u8]) -> Result<(), Error> {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe {
-                let error = wdk_sys::ntddk::EtwSetInformation(
-                    self.handle,
-                    wdk_sys::_EVENT_INFO_CLASS::EventProviderSetTraits,
-                    provider_traits.as_ptr() as *mut u8 as wdk_sys::PVOID,
-                    u32::try_from(provider_traits.len()).unwrap(),
-                );
-                if error != 0 {
-                    #[cfg(feature = "dev")]
-                    {
-                        eprintln!("EventSetInformation failed for provider traits");
-                    }
-                    return Err(Error::WindowsError(error as u32));
+        unsafe {
+            let error = wdk_sys::ntddk::EtwSetInformation(
+                self.handle,
+                wdk_sys::_EVENT_INFO_CLASS::EventProviderSetTraits,
+                provider_traits.as_ptr() as *mut u8 as wdk_sys::PVOID,
+                u32::try_from(provider_traits.len()).unwrap(),
+            );
+            if error != 0 {
+                #[cfg(feature = "dev")]
+                {
+                    eprintln!("EventSetInformation failed for provider traits");
                 }
+                return Err(Error::WindowsError(error as u32));
             }
-            Ok(())
         }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Ok(())
-        }
+        Ok(())
     }
 }
 
 impl Drop for EtwDriverProvider {
     fn drop(&mut self) {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe {
-                // Nothing we can do if this fails.
-                let _ = wdk_sys::ntddk::EtwUnregister(self.handle);
-            }
+        unsafe {
+            // Nothing we can do if this fails.
+            let _ = wdk_sys::ntddk::EtwUnregister(self.handle);
         }
     }
 }
@@ -351,40 +295,32 @@ unsafe impl Sync for EtwDriverProvider {}
 /// provided function. After the function finishes, it restores the activity ID of the calling
 /// thread (even if a panic occurs).
 ///
-/// See `[EventActivityIdControl](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventactivityidcontrol)`.
+/// See `[EtwActivityIdControl](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-etwactivityidcontrol)`.
 #[inline(always)]
 pub fn with_activity<F: FnOnce() -> R, R>(f: F) -> R {
-    #[cfg(target_os = "windows")]
-    {
-        let mut previous_activity_id: GUID = Default::default();
+    let mut previous_activity_id: GUID = Default::default();
 
-        let mut restore = RestoreActivityHolder {
-            previous_activity_id: None,
-        };
+    let mut restore = RestoreActivityHolder {
+        previous_activity_id: None,
+    };
 
-        unsafe {
-            let result = wdk_sys::ntddk::EtwActivityIdControl(
-                evntprov::EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
-                &mut previous_activity_id as *mut _ as *mut wdk_sys::GUID,
-            );
-            if NT_SUCCESS(result) {
-                restore.previous_activity_id = Some(previous_activity_id);
-            } else {
-                // Failed to create/replace the activity ID. There is not much we can do about this.
-            }
+    unsafe {
+        let result = wdk_sys::ntddk::EtwActivityIdControl(
+            wdk_sys::EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
+            &mut previous_activity_id as *mut _ as *mut wdk_sys::GUID,
+        );
+        if NT_SUCCESS(result) {
+            restore.previous_activity_id = Some(previous_activity_id);
+        } else {
+            // Failed to create/replace the activity ID. There is not much we can do about this.
         }
-
-        let result = f();
-        // RestoreActivityHolder::drop() will run, even if f() panics, and will restore the
-        // activity ID of the current thread.
-        drop(restore);
-        result
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        f()
-    }
+    let result = f();
+    // RestoreActivityHolder::drop() will run, even if f() panics, and will restore the
+    // activity ID of the current thread.
+    drop(restore);
+    result
 }
 
 struct RestoreActivityHolder {
@@ -393,15 +329,12 @@ struct RestoreActivityHolder {
 
 impl Drop for RestoreActivityHolder {
     fn drop(&mut self) {
-        #[cfg(target_os = "windows")]
-        {
-            unsafe {
-                if let Some(previous_activity_id) = self.previous_activity_id.as_ref() {
-                    let _ = wdk_sys::ntddk::EtwActivityIdControl(
-                        evntprov::EVENT_ACTIVITY_CTRL_SET_ID,
-                        previous_activity_id as *const GUID as *mut wdk_sys::GUID,
-                    );
-                }
+        unsafe {
+            if let Some(previous_activity_id) = self.previous_activity_id.as_ref() {
+                let _ = wdk_sys::ntddk::EtwActivityIdControl(
+                    wdk_sys::EVENT_ACTIVITY_CTRL_SET_ID,
+                    previous_activity_id as *const GUID as *mut wdk_sys::GUID,
+                );
             }
         }
     }
