@@ -156,6 +156,22 @@ These tools can also be used to capture ETW events:
 
 There are other tools, such as the Windows Performance Recorder, which can capture ETW events.
 
+## Building and using tracing for Windows kernel-mode drivers
+
+This repo has experimental support for ETW tracing in Windows kernel-mode drivers written in Rust (see the [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs) repo.)  To allow this repo to be built without requiring the Windows Driver Kit in all scenarios, this `windows_drivers` feature - present in both the `win_etw_provider` and `win_etw_macros` crates - is **mutually exclusive** with the default `windows_apps` feature.  
+
+To build this feature, you must install the Windows Driver Kit and LLVM to enable linking to driver DDIs.  See [the windows-drivers-rs README](https://github.com/microsoft/windows-drivers-rs?tab=readme-ov-file#build-requirements) for details on on how to do this.
+
+Once this is done, the `windows_drivers` feature can be built.
+
+To use this feature in a Rust driver, when adding the `win_etw_provider` and `win_etw_macros` crates to your Cargo.toml file, make sure you set `default-features` to **false** in your cargo.toml file and activate the `windows_drivers` feature for both:
+
+```toml
+[dependencies]
+win_etw_macros = { version = "^0.2.1", default-features = false, features = "windows_drivers" }
+win_etw_provider = { version = "^0.2.1", default-features = false, features = "windows_drivers" }
+```
+
 ## Ideas for improvement
 
 * Better handling of per-event overrides, rather than using `Option<&EventOptions>`.
