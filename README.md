@@ -168,8 +168,8 @@ To use this feature in a Rust driver, when adding the `win_etw_provider` and `wi
 
 ```toml
 [dependencies]
-win_etw_macros = { version = "^0.2.1", default-features = false, features = "windows_drivers" }
-win_etw_provider = { version = "^0.2.1", default-features = false, features = "windows_drivers" }
+win_etw_macros = { version = "^0.1.11", default-features = false, features = "windows_drivers" }
+win_etw_provider = { version = "^0.1.11", default-features = false, features = "windows_drivers" }
 ```
 
 ## Ideas for improvement

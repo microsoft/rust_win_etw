@@ -184,9 +184,9 @@
 //!
 //! If you are developing for kernel-mode, you should add these dependencies to your crate:
 //! ```text
-//! [dependencies]
-//! win_etw_macros = {version = "0.1.*", default-features = false, features = ["windows_drivers"]}
-//! win_etw_provider = {"0.1.*", default-features = false, features = ["windows_drivers"]}
+//![dependencies]
+//!win_etw_macros = { version = "^0.1.11", default-features = false, features = "windows_drivers" }
+//!win_etw_provider = { version = "^0.1.11", default-features = false, features = "windows_drivers" }
 //! ```
 //!
 //! Then apply the `#[trace_logging_provider_kernel]` macro rather than `#[trace_logging_provider]`.
