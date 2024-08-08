@@ -1,5 +1,3 @@
-#[cfg(feature = "uuid")]
-use crate::alloc::borrow::ToOwned;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 /// Initializes a `GUID` from literal values.
@@ -107,7 +105,7 @@ impl From<uuid::Uuid> for GUID {
             data1: fields.0,
             data2: fields.1,
             data3: fields.2,
-            data4: fields.3.to_owned(),
+            data4: *fields.3,
         }
     }
 }
