@@ -126,11 +126,11 @@ impl Provider for EtwProvider {
 
                 if let Some(options) = options {
                     if let Some(id) = options.activity_id.as_ref() {
-                        activity_id_ptr = id as *const GUID as *const winapi::shared::guiddef::GUID;
+                        activity_id_ptr = id as *const GUID as *const windows_core::GUID;
                     }
                     if let Some(id) = options.related_activity_id.as_ref() {
                         related_activity_id_ptr =
-                            id as *const GUID as *const winapi::shared::guiddef::GUID;
+                            id as *const GUID as *const windows_core::GUID;
                     }
                     if let Some(level) = options.level {
                         event_descriptor.Level = level.0;
@@ -216,7 +216,7 @@ mod win_support {
 
     /// See [PENABLECALLBACK](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nc-evntprov-penablecallback).
     pub(crate) unsafe extern "system" fn enable_callback(
-        _source_id: *const winapi::shared::guiddef::GUID,
+        _source_id: *const windows_core::GUID,
         is_enabled_code: u32,
         level: u8,
         _match_any_keyword: u64,
@@ -282,7 +282,7 @@ mod win_support {
 
     pub fn new_activity_id() -> Result<GUID, Error> {
         unsafe {
-            let mut guid: winapi::shared::guiddef::GUID = core::mem::zeroed();
+            let mut guid: windows_core::GUID = core::mem::zeroed();
             let error = evntprov::EventActivityIdControl(
                 evntprov::EVENT_ACTIVITY_CTRL_CREATE_ID,
                 &mut guid,
@@ -310,7 +310,7 @@ impl EtwProvider {
                 let mut handle: evntprov::REGHANDLE = 0;
                 let stable_ptr: &mut StableProviderData = &mut stable;
                 let error = evntprov::EventRegister(
-                    provider_id as *const _ as *const winapi::shared::guiddef::GUID,
+                    provider_id as *const _ as *const windows_core::GUID,
                     Some(enable_callback),
                     stable_ptr as *mut StableProviderData as *mut winapi::ctypes::c_void,
                     &mut handle,
@@ -437,7 +437,7 @@ pub fn with_activity<F: FnOnce() -> R, R>(f: F) -> R {
         unsafe {
             let result = evntprov::EventActivityIdControl(
                 evntprov::EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
-                &mut previous_activity_id as *mut _ as *mut winapi::shared::guiddef::GUID,
+                &mut previous_activity_id as *mut _ as *mut windows_core::GUID,
             );
             if result == winerror::ERROR_SUCCESS {
                 restore.previous_activity_id = Some(previous_activity_id);
@@ -471,7 +471,7 @@ impl Drop for RestoreActivityHolder {
                 if let Some(previous_activity_id) = self.previous_activity_id.as_ref() {
                     evntprov::EventActivityIdControl(
                         evntprov::EVENT_ACTIVITY_CTRL_SET_ID,
-                        previous_activity_id as *const GUID as *const winapi::shared::guiddef::GUID
+                        previous_activity_id as *const GUID as *const windows_core::GUID
                             as *mut _,
                     );
                 }

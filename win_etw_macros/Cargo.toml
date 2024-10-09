@@ -2,7 +2,7 @@
 name = "win_etw_macros"
 version = "0.1.9"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
-edition = "2018"
+edition = "2021"
 description = "Enables apps to report events to Event Tracing for Windows (ETW)."
 license = "Apache-2.0 OR MIT"
 homepage = "https://github.com/microsoft/rust_win_etw"

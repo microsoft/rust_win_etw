@@ -46,6 +46,7 @@ macro_rules! guid {
 /// an equivalent type from other crates in order to minimize its dependencies. `GUID` has a well-
 /// defined byte representation, so converting between different implementations of `GUID` is
 /// not a problem.
+/// TODO: we're depending on windows-core anyway, can we drop this?
 #[repr(C)]
 #[derive(Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, AsBytes, FromBytes, FromZeroes)]
 pub struct GUID {
@@ -86,13 +87,13 @@ impl core::fmt::Debug for GUID {
 }
 
 #[cfg(target_os = "windows")]
-impl From<winapi::shared::guiddef::GUID> for GUID {
-    fn from(value: winapi::shared::guiddef::GUID) -> Self {
+impl From<windows_core::GUID> for GUID {
+    fn from(value: windows_core::GUID) -> Self {
         Self {
-            data1: value.Data1,
-            data2: value.Data2,
-            data3: value.Data3,
-            data4: value.Data4,
+            data1: value.data1,
+            data2: value.data2,
+            data3: value.data3,
+            data4: value.data4,
         }
     }
 }
