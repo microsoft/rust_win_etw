@@ -48,12 +48,11 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
-        pub use winapi::shared::ntstatus;
-        pub use winapi::shared::winerror;
+        pub use windows::Win32::Foundation::{STATUS_DEVICE_REQUIRES_CLEANING, DXGI_DDI_ERR_WASSTILLDRAWING, ERROR_OUT_OF_PAPER};
 
-        hello_provider.arg_hresult(None, winerror::DXGI_DDI_ERR_WASSTILLDRAWING);
-        hello_provider.arg_ntstatus(None, ntstatus::STATUS_DEVICE_REQUIRES_CLEANING as u32);
-        hello_provider.arg_win32error(None, winerror::ERROR_OUT_OF_PAPER);
+        hello_provider.arg_hresult(None, DXGI_DDI_ERR_WASSTILLDRAWING);
+        hello_provider.arg_ntstatus(None, STATUS_DEVICE_REQUIRES_CLEANING as u32);
+        hello_provider.arg_win32error(None, ERROR_OUT_OF_PAPER);
     }
 
     let args = std::env::args().collect::<Vec<String>>();

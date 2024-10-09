@@ -12,7 +12,12 @@ edition = "2018"
 win_etw_macros = { path = "../../win_etw_macros" }
 win_etw_provider = { path = "../../win_etw_provider", features = ["std"] }
 widestring = "^1.0"
-winapi = { version = "^0.3.8", features = ["ntstatus"] }
+
+[dependencies.windows]
+version = "0.58.0"
+features = [
+    "Win32_Foundation",
+]
 
 [features]
 default = []
