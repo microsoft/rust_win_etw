@@ -146,7 +146,7 @@ impl Provider for EtwProvider {
                     0,                       // flags
                     Some(activity_id_ptr),         // activity id
                     Some(related_activity_id_ptr), // related activity id
-                    Some(data)
+                    Some(std::mem::transmute(data)) // TODO: assert size and aligment adds up
                 );
                 if error != 0 {
                     write_failed(error)
