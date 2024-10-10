@@ -1,6 +1,6 @@
 [package]
 name = "win_etw_provider"
-version = "0.1.10"
+version = "0.1.11"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2021"
 description = "Enables apps to report events to Event Tracing for Windows (ETW)."
@@ -20,8 +20,6 @@ uuid = {version = "1", optional = true}
 [target.'cfg(windows)'.dependencies]
 windows-core = { version = "0.58.0" }
 windows = { version = "0.58.0", features = ["Win32_Foundation", "Win32_System_Diagnostics_Etw"] }
-
-
 
 [dev-dependencies]
 atomic_lazy = { git = "https://github.com/sivadeilra/atomic_lazy" }
