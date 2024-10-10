@@ -2,7 +2,7 @@
 name = "win_etw_metadata"
 version = "0.1.2"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
-edition = "2018"
+edition = "2021"
 description = "Provides metadata definitions for the win_etw_provider and win_etw_macros crates."
 license = "Apache-2.0 OR MIT"
 homepage = "https://github.com/microsoft/rust_win_etw"
