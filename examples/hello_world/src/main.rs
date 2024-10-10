@@ -51,7 +51,7 @@ fn main() {
         pub use windows::Win32::Foundation::{STATUS_DEVICE_REQUIRES_CLEANING, DXGI_DDI_ERR_WASSTILLDRAWING, ERROR_OUT_OF_PAPER};
 
         hello_provider.arg_hresult(None, DXGI_DDI_ERR_WASSTILLDRAWING);
-        hello_provider.arg_ntstatus(None, STATUS_DEVICE_REQUIRES_CLEANING as u32);
+        hello_provider.arg_ntstatus(None, STATUS_DEVICE_REQUIRES_CLEANING.0);
         hello_provider.arg_win32error(None, ERROR_OUT_OF_PAPER);
     }
 

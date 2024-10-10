@@ -2,6 +2,8 @@ use crate::guid::GUID;
 use crate::Level;
 use crate::{Error, EventDataDescriptor};
 use alloc::boxed::Box;
+use evntprov::PENABLECALLBACK;
+use windows::Win32::Foundation::ERROR_SUCCESS;
 use core::convert::TryFrom;
 use core::pin::Pin;
 use core::ptr::null;
@@ -142,11 +144,9 @@ impl Provider for EtwProvider {
                     &event_descriptor,
                     0,                       // filter
                     0,                       // flags
-                    activity_id_ptr,         // activity id
-                    related_activity_id_ptr, // related activity id
-                    data.len() as u32,
-                    data.as_ptr() as *const evntprov::EVENT_DATA_DESCRIPTOR
-                        as *mut evntprov::EVENT_DATA_DESCRIPTOR,
+                    Some(activity_id_ptr),         // activity id
+                    Some(related_activity_id_ptr), // related activity id
+                    Some(data)
                 );
                 if error != 0 {
                     write_failed(error)
@@ -161,7 +161,7 @@ impl Provider for EtwProvider {
     fn is_enabled(&self, level: u8, keyword: u64) -> bool {
         #[cfg(target_os = "windows")]
         {
-            unsafe { evntprov::EventProviderEnabled(self.handle, level, keyword) != 0 }
+            unsafe { evntprov::EventProviderEnabled(self.handle, level, keyword)}.as_bool()
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -177,8 +177,8 @@ impl Provider for EtwProvider {
                     evntprov::EventEnabled(
                         self.handle,
                         event_descriptor as *const _ as *const evntprov::EVENT_DESCRIPTOR,
-                    ) != 0
-                }
+                    )
+                }.as_bool()
             } else {
                 let max_level = self.stable.as_ref().max_level.load(SeqCst);
                 event_descriptor.level.0 <= max_level
@@ -201,9 +201,8 @@ fn write_failed(_error: u32) {
 
 #[cfg(target_os = "windows")]
 mod win_support {
-    pub use winapi::shared::evntprov;
-    pub use winapi::shared::evntrace;
-    pub use winapi::shared::winerror;
+    use windows::Win32::System::Diagnostics::Etw::{ENABLECALLBACK_ENABLED_STATE, EVENT_CONTROL_CODE_CAPTURE_STATE, EVENT_CONTROL_CODE_DISABLE_PROVIDER, EVENT_CONTROL_CODE_ENABLE_PROVIDER};
+    pub use windows::Win32::System::Diagnostics::Etw as evntprov;
 
     use super::*;
 
@@ -217,12 +216,12 @@ mod win_support {
     /// See [PENABLECALLBACK](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nc-evntprov-penablecallback).
     pub(crate) unsafe extern "system" fn enable_callback(
         _source_id: *const windows_core::GUID,
-        is_enabled_code: u32,
+        is_enabled_code: ENABLECALLBACK_ENABLED_STATE,
         level: u8,
         _match_any_keyword: u64,
         _match_all_keyword: u64,
-        _filter_data: *mut evntprov::EVENT_FILTER_DESCRIPTOR,
-        context: *mut winapi::ctypes::c_void,
+        _filter_data: *const evntprov::EVENT_FILTER_DESCRIPTOR,
+        context: *mut core::ffi::c_void,
     ) {
         // This should never happen.
         if context.is_null() {
@@ -245,21 +244,21 @@ mod win_support {
         }
 
         match is_enabled_code {
-            evntrace::EVENT_CONTROL_CODE_ENABLE_PROVIDER => {
+            EVENT_CONTROL_CODE_ENABLE_PROVIDER => {
                 #[cfg(feature = "dev")]
                 {
                     eprintln!("ETW is ENABLING this provider.  setting level: {}", level);
                 }
                 stable_data.max_level.store(level, SeqCst);
             }
-            evntrace::EVENT_CONTROL_CODE_DISABLE_PROVIDER => {
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER => {
                 #[cfg(feature = "dev")]
                 {
                     eprintln!("ETW is DISABLING this provider.  setting level: {}", level);
                 }
                 stable_data.max_level.store(level, SeqCst);
             }
-            evntrace::EVENT_CONTROL_CODE_CAPTURE_STATE => {
+            EVENT_CONTROL_CODE_CAPTURE_STATE => {
                 // ETW is requesting that the provider log its state information. The meaning of this
                 // is provider-dependent. Currently, this functionality is not exposed to Rust apps.
                 #[cfg(feature = "dev")]
@@ -307,13 +306,13 @@ impl EtwProvider {
                 let mut stable = Box::pin(StableProviderData {
                     max_level: AtomicU8::new(0),
                 });
-                let mut handle: evntprov::REGHANDLE = 0;
+                let mut handle = evntprov::REGHANDLE(0);
                 let stable_ptr: &mut StableProviderData = &mut stable;
                 let error = evntprov::EventRegister(
                     provider_id as *const _ as *const windows_core::GUID,
                     Some(enable_callback),
-                    stable_ptr as *mut StableProviderData as *mut winapi::ctypes::c_void,
-                    &mut handle,
+                    Some(stable_ptr as *mut StableProviderData as *mut core::ffi::c_void),
+                    &mut handle as *mut evntprov::REGHANDLE as *mut u64,
                 );
                 if error != 0 {
                     Err(Error::WindowsError(error))
@@ -336,8 +335,8 @@ impl EtwProvider {
             unsafe {
                 let error = evntprov::EventSetInformation(
                     self.handle,
-                    2,
-                    provider_metadata.as_ptr() as *mut winapi::ctypes::c_void,
+                    windows::Win32::System::Diagnostics::Etw::EVENT_INFO_CLASS(2),
+                    provider_metadata.as_ptr() as *mut core::ffi::c_void,
                     u32::try_from(provider_metadata.len()).unwrap(),
                 );
                 if error != 0 {
@@ -370,7 +369,7 @@ impl EtwProvider {
                 let error = evntprov::EventSetInformation(
                     self.handle,
                     evntprov::EventProviderSetTraits,
-                    provider_traits.as_ptr() as *mut u8 as *mut winapi::ctypes::c_void,
+                    provider_traits.as_ptr() as *mut u8 as *mut core::ffi::c_void,
                     u32::try_from(provider_traits.len()).unwrap(),
                 );
                 if error != 0 {
@@ -439,7 +438,7 @@ pub fn with_activity<F: FnOnce() -> R, R>(f: F) -> R {
                 evntprov::EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
                 &mut previous_activity_id as *mut _ as *mut windows_core::GUID,
             );
-            if result == winerror::ERROR_SUCCESS {
+            if result == ERROR_SUCCESS.0 {
                 restore.previous_activity_id = Some(previous_activity_id);
             } else {
                 // Failed to create/replace the activity ID. There is not much we can do about this.
