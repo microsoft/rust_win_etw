@@ -4,7 +4,7 @@ version = "0.1.2"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Provides a backend for the `tracing` crate that logs events to ETW (Event Tracing for Windows)."
-homepage = "https://github.com/microsoft/rust_win_etw"
+repository = "https://github.com/microsoft/rust_win_etw"
 readme = "../README.md"
 
 [features]
