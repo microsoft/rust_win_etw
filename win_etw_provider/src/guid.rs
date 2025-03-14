@@ -1,4 +1,4 @@
-use zerocopy::{FromBytes, FromZeros, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 /// Initializes a `GUID` from literal values.
 #[macro_export]

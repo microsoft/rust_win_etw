@@ -6,7 +6,7 @@
 pub use widestring::{U16CStr, U16CString};
 
 use crate::EventDataDescriptor;
-use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 /// The value used in `SocketAddrV4::family` to identify IPv4 addresses.
 pub const AF_INET: u16 = 2;
