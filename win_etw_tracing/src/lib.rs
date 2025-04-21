@@ -237,21 +237,9 @@ where
         #[cfg(not(feature = "tracing-log"))]
         let meta = event.metadata();
 
-        let activity_id = {
-            if event.is_contextual() {
-                ctx.current_span().id().cloned()
-            } else {
-                event.parent().cloned()
-            }
-            .and_then(|id| {
-                ctx.span(&id)
-                    .unwrap()
-                    .extensions()
-                    .get::<ActivityId>()
-                    .cloned()
-            })
-            .map(|x| x.0)
-        };
+        let activity_id = ctx
+            .event_span(event)
+            .and_then(|span| span.extensions().get::<ActivityId>().cloned().map(|x| x.0));
 
         self.write_event(
             WINEVENT_OPCODE_INFO,
