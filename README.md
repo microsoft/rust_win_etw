@@ -12,7 +12,7 @@ This framework allows applications to log schematized events, rather than textua
 ETW analysis tools can reliably identify fields within your events, and treat them as
 strongly-typed data, rather than text strings.
 
-To use [tracing](https://tracing.rs) with ETW, see [tracing-etw](./win_etw_tracing/).
+To use [tracing](https://tracing.rs) with ETW, see [tracing-etw](https://github.com/microsoft/tracing-etw).
 
 ## How to create and use an event provider
 
