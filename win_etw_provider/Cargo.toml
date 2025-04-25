@@ -13,7 +13,7 @@ rust-version = "1.77"
 
 [dependencies]
 widestring = {version = "^1.0", default-features = false, features = ["alloc"]}
-zerocopy = { version = "0.7.32", features = ["derive"] }
+zerocopy = { version = "0.8.23", features = ["derive"] }
 win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
 uuid = {version = "1", optional = true}
 

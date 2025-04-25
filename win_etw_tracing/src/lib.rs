@@ -6,8 +6,6 @@
 
 use bytes::BufMut;
 use core::fmt;
-use core::sync::atomic::AtomicU64;
-use core::sync::atomic::Ordering;
 use std::io::Write;
 use tracing::field::Field;
 use tracing::field::Visit;
@@ -34,7 +32,7 @@ use win_etw_provider::GUID;
 /// events.
 pub struct TracelogSubscriber {
     provider: EtwProvider,
-    keyword_mask: AtomicU64,
+    keyword_mask: u64,
     global_fields: EventData,
 }
 
@@ -54,7 +52,7 @@ impl TracelogSubscriber {
         provider.register_provider_metadata(provider_metadata.as_slice())?;
         Ok(Self {
             provider,
-            keyword_mask: AtomicU64::new(!0),
+            keyword_mask: !0_u64,
             global_fields: EventData {
                 metadata: Vec::new(),
                 data: Vec::new(),
@@ -63,28 +61,25 @@ impl TracelogSubscriber {
     }
 
     // If some events are by default marked with telemetry keywords, this allows an opt out.
-    pub fn enable_telemetry_events(&self, enabled: bool) {
-        self.keyword_mask.store(
-            if enabled {
-                !0_u64
-            } else {
-                !(win_etw_metadata::MICROSOFT_KEYWORD_CRITICAL_DATA
-                    | win_etw_metadata::MICROSOFT_KEYWORD_MEASURES
-                    | win_etw_metadata::MICROSOFT_KEYWORD_TELEMETRY)
-            },
-            Ordering::Relaxed,
-        );
+    pub fn enable_telemetry_events(&mut self, enabled: bool) {
+        self.keyword_mask = if enabled {
+            !0_u64
+        } else {
+            !(win_etw_metadata::MICROSOFT_KEYWORD_CRITICAL_DATA
+                | win_etw_metadata::MICROSOFT_KEYWORD_MEASURES
+                | win_etw_metadata::MICROSOFT_KEYWORD_TELEMETRY)
+        };
     }
 
     pub fn filter_keyword(&self, keyword: u64) -> u64 {
-        keyword & self.keyword_mask.load(Ordering::Relaxed)
+        keyword & self.keyword_mask
     }
 
     /// Global fields are automatically included in all events emitted by this
     /// layer. They can be set at the time of layer creation, or by using
     /// [`tracing_subscriber::reload`] to dynamically reconfigure a registered
     /// layer. Note that if the subscriber is registered as the [global
-    /// default](tracing::dispatcher#setting-the-default-subscriber), these
+    /// default](tracing::dispatcher#setting-the-default-subscriber), thesee
     /// fields will be global to the entire process.
     ///
     /// # Example
@@ -277,21 +272,9 @@ where
         #[cfg(not(feature = "tracing-log"))]
         let meta = event.metadata();
 
-        let activity_id = {
-            if event.is_contextual() {
-                ctx.current_span().id().cloned()
-            } else {
-                event.parent().cloned()
-            }
-            .and_then(|id| {
-                ctx.span(&id)
-                    .unwrap()
-                    .extensions()
-                    .get::<ActivityId>()
-                    .cloned()
-            })
-            .map(|x| x.0)
-        };
+        let activity_id = ctx
+            .event_span(event)
+            .and_then(|span| span.extensions().get::<ActivityId>().cloned().map(|x| x.0));
 
         self.write_event(
             WINEVENT_OPCODE_INFO,

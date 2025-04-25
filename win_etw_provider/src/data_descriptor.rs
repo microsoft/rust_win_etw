@@ -2,7 +2,7 @@ use crate::guid::GUID;
 use core::marker::PhantomData;
 use core::mem::size_of;
 use widestring::{U16CStr, U16Str};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// Contains a reference to the data for an event field. The type of the data is not specified in
 /// this structure; instead, the type of the data is stored in the event's metadata.
