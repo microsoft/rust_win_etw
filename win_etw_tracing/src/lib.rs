@@ -80,6 +80,27 @@ impl TracelogSubscriber {
         keyword & self.keyword_mask.load(Ordering::Relaxed)
     }
 
+    /// Global fields are automatically included in all events emitted by this
+    /// layer. They can be set at the time of layer creation, or by using
+    /// [`tracing_subscriber::reload`] to dynamically reconfigure a registered
+    /// layer. Note that if the subscriber is registered as the [global
+    /// default](tracing::dispatcher#setting-the-default-subscriber), these
+    /// fields will be global to the entire process.
+    ///
+    /// # Example
+    /// ```
+    /// # use win_etw_tracing::TracelogSubscriber;
+    /// # use win_etw_provider::GUID;
+    /// # let provider_guid = GUID {
+    /// #     data1: 0xe1c71d95,
+    /// #     data2: 0x7bbc,
+    /// #     data3: 0x5f48,
+    /// #     data4: [0xa9, 0x2b, 0x8a, 0xaa, 0x0b, 0x52, 0x91, 0x58],
+    /// # };
+    /// let mut layer = TracelogSubscriber::new(provider_guid, "provider_name").unwrap();
+    /// let globals = vec![("field name", "my value")];
+    /// layer.set_global_fields(&globals);
+    /// ```
     pub fn set_global_fields(&mut self, fields: &[(&str, &str)]) {
         self.global_fields.metadata.clear();
         self.global_fields.data.clear();
