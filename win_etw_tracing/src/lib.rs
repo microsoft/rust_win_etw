@@ -6,8 +6,6 @@
 
 use bytes::BufMut;
 use core::fmt;
-use core::sync::atomic::AtomicU64;
-use core::sync::atomic::Ordering;
 use std::io::Write;
 use tracing::field::Field;
 use tracing::field::Visit;
@@ -34,7 +32,7 @@ use win_etw_provider::GUID;
 /// events.
 pub struct TracelogSubscriber {
     provider: EtwProvider,
-    keyword_mask: AtomicU64,
+    keyword_mask: u64,
 }
 
 impl TracelogSubscriber {
@@ -53,26 +51,23 @@ impl TracelogSubscriber {
         provider.register_provider_metadata(provider_metadata.as_slice())?;
         Ok(Self {
             provider,
-            keyword_mask: AtomicU64::new(!0),
+            keyword_mask: !0_u64,
         })
     }
 
     // If some events are by default marked with telemetry keywords, this allows an opt out.
-    pub fn enable_telemetry_events(&self, enabled: bool) {
-        self.keyword_mask.store(
-            if enabled {
-                !0_u64
-            } else {
-                !(win_etw_metadata::MICROSOFT_KEYWORD_CRITICAL_DATA
-                    | win_etw_metadata::MICROSOFT_KEYWORD_MEASURES
-                    | win_etw_metadata::MICROSOFT_KEYWORD_TELEMETRY)
-            },
-            Ordering::Relaxed,
-        );
+    pub fn enable_telemetry_events(&mut self, enabled: bool) {
+        self.keyword_mask = if enabled {
+            !0_u64
+        } else {
+            !(win_etw_metadata::MICROSOFT_KEYWORD_CRITICAL_DATA
+                | win_etw_metadata::MICROSOFT_KEYWORD_MEASURES
+                | win_etw_metadata::MICROSOFT_KEYWORD_TELEMETRY)
+        };
     }
 
     pub fn filter_keyword(&self, keyword: u64) -> u64 {
-        keyword & self.keyword_mask.load(Ordering::Relaxed)
+        keyword & self.keyword_mask
     }
 }
 
