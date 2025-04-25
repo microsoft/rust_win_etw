@@ -33,6 +33,7 @@ use win_etw_provider::GUID;
 pub struct TracelogSubscriber {
     provider: EtwProvider,
     keyword_mask: u64,
+    global_fields: EventData,
 }
 
 impl TracelogSubscriber {
@@ -52,6 +53,10 @@ impl TracelogSubscriber {
         Ok(Self {
             provider,
             keyword_mask: !0_u64,
+            global_fields: EventData {
+                metadata: Vec::new(),
+                data: Vec::new(),
+            },
         })
     }
 
@@ -68,6 +73,35 @@ impl TracelogSubscriber {
 
     pub fn filter_keyword(&self, keyword: u64) -> u64 {
         keyword & self.keyword_mask
+    }
+
+    /// Global fields are automatically included in all events emitted by this
+    /// layer. They can be set at the time of layer creation, or by using
+    /// [`tracing_subscriber::reload`] to dynamically reconfigure a registered
+    /// layer. Note that if the subscriber is registered as the [global
+    /// default](tracing::dispatcher#setting-the-default-subscriber), thesee
+    /// fields will be global to the entire process.
+    ///
+    /// # Example
+    /// ```
+    /// # use win_etw_tracing::TracelogSubscriber;
+    /// # use win_etw_provider::GUID;
+    /// # let provider_guid = GUID {
+    /// #     data1: 0xe1c71d95,
+    /// #     data2: 0x7bbc,
+    /// #     data3: 0x5f48,
+    /// #     data4: [0xa9, 0x2b, 0x8a, 0xaa, 0x0b, 0x52, 0x91, 0x58],
+    /// # };
+    /// let mut layer = TracelogSubscriber::new(provider_guid, "provider_name").unwrap();
+    /// let globals = vec![("field name", "my value")];
+    /// layer.set_global_fields(&globals);
+    /// ```
+    pub fn set_global_fields(&mut self, fields: &[(&str, &str)]) {
+        self.global_fields.metadata.clear();
+        self.global_fields.data.clear();
+        for &(name, value) in fields.iter() {
+            self.global_fields.record_global(name, value);
+        }
     }
 }
 
@@ -123,6 +157,12 @@ impl TracelogSubscriber {
             0
         };
 
+        event_data
+            .metadata
+            .put_slice(self.global_fields.metadata.as_slice());
+        event_data
+            .data
+            .put_slice(self.global_fields.data.as_slice());
         record(&mut event_data);
 
         // Update the length.
@@ -360,6 +400,16 @@ impl EventData {
         self.metadata.put_u8(0); // null terminator
         true
     }
+
+    fn record_global(&mut self, name: &str, value: &str) {
+        if self.write_name(name) {
+            self.metadata
+                .put_u8((InFlag::ANSI_STRING | InFlag::CHAIN_FLAG).bits());
+            self.metadata.put_u8(OutFlag::UTF8.bits());
+            self.data.extend(value.as_bytes());
+            self.data.put_u8(0); // null terminator
+        }
+    }
 }
 
 impl Visit for EventData {
@@ -428,6 +478,7 @@ impl Visit for EventData {
 mod tests {
     use crate::TracelogSubscriber;
     use tracing_subscriber::prelude::*;
+    use tracing_subscriber::reload;
     use tracing_subscriber::Registry;
     use win_etw_provider::GUID;
 
@@ -464,5 +515,25 @@ mod tests {
                 span.record("later", "wait no it's a string now");
             });
         });
+    }
+
+    #[test]
+    fn global() {
+        let (layer, reload_handle) = reload::Layer::new(
+            TracelogSubscriber::new(PROVIDER_GUID.clone(), PROVIDER_NAME).unwrap(),
+        );
+        let _x = Registry::default().with(layer).set_default();
+        tracing::info!(a_field = 123, "test globals");
+        let global = vec![("global", "some value")];
+        reload_handle
+            .modify(|layer| layer.set_global_fields(&global))
+            .unwrap();
+        tracing::info!(a_field = 456, "test globals modify");
+        let _s = tracing::info_span!("span with globals", span_field = "abc").entered();
+        let global = vec![("global", "new value"), ("global2", "value")];
+        reload_handle
+            .modify(|layer| layer.set_global_fields(&global))
+            .unwrap();
+        tracing::info!(a_field = 789, "test globals modify again");
     }
 }
