@@ -196,8 +196,8 @@ impl TracelogSubscriber {
 struct ActivityId(GUID);
 
 impl ActivityId {
-    fn new() -> Result<Self, Error> {
-        Ok(Self(win_etw_provider::new_activity_id()?))
+    fn get_current_thread_activity_id() -> Result<Self, Error> {
+        Ok(Self(win_etw_provider::get_current_thread_activity_id()?))
     }
 }
 
@@ -210,7 +210,7 @@ where
     S: for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        let activity_id = ActivityId::new().unwrap_or_default();
+        let activity_id = ActivityId::get_current_thread_activity_id().unwrap_or_default();
 
         let related_activity_id = {
             if attrs.is_contextual() {
