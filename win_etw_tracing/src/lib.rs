@@ -196,6 +196,7 @@ impl TracelogSubscriber {
 struct ActivityId(GUID);
 
 impl ActivityId {
+    #[allow(dead_code)]
     fn new() -> Result<Self, Error> {
         Ok(Self(win_etw_provider::new_activity_id()?))
     }
