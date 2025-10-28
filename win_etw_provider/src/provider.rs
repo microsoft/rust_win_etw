@@ -25,6 +25,30 @@ pub fn new_activity_id() -> Result<GUID, Error> {
     }
 }
 
+/// Gets the current activity ID.
+///
+/// This function is only implemented on Windows. On other platforms, it will always return `Err`.
+pub fn get_current_thread_activity_id() -> Result<GUID, Error> {
+    #[cfg(target_os = "windows")]
+    {
+        unsafe {
+            let mut guid: winapi::shared::guiddef::GUID = core::mem::zeroed();
+            let error =
+                evntprov::EventActivityIdControl(evntprov::EVENT_ACTIVITY_CTRL_GET_ID, &mut guid);
+            if error == 0 {
+                Ok(guid.into())
+            } else {
+                Err(Error::WindowsError(error))
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err(Error::NotSupported)
+    }
+}
+
 /// Describes the functions needed for an event provider backend. This is an implementation
 /// detail, and should not be used directly by applications.
 pub trait Provider {
