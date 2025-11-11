@@ -34,6 +34,7 @@ pub struct TracelogSubscriber {
     provider: EtwProvider,
     keyword_mask: u64,
     global_fields: EventData,
+    trace_keyword: u64,
 }
 
 impl TracelogSubscriber {
@@ -57,6 +58,7 @@ impl TracelogSubscriber {
                 metadata: Vec::new(),
                 data: Vec::new(),
             },
+            trace_keyword: 0,
         })
     }
 
@@ -103,6 +105,20 @@ impl TracelogSubscriber {
             self.global_fields.record_global(name, value);
         }
     }
+
+    /// Sets the keyword to use for events logged at [`tracing::Level::TRACE`]
+    /// level.
+    ///
+    /// Because ETW only provides one level below [`win_etw_metadata::Level::INFO`],
+    /// both [`tracing::Level::DEBUG`] and [`tracing::Level::TRACE`] events are
+    /// mapped to [`win_etw_metadata::Level::VERBOSE`]. This method allows
+    /// distinguishing between the two levels by assigning a specific keyword
+    /// used only for [`tracing::Level::TRACE`] events.
+    ///
+    /// By default, this is set to `0`, meaning no keyword is applied.
+    pub fn set_trace_keyword(&mut self, keyword: u64) {
+        self.trace_keyword = keyword;
+    }
 }
 
 impl TracelogSubscriber {
@@ -115,11 +131,16 @@ impl TracelogSubscriber {
         write_name: impl FnOnce(&mut Vec<u8>),
         record: impl FnOnce(&mut dyn Visit),
     ) {
+        let mut keyword = 0;
         let level = match *meta.level() {
             tracing::Level::ERROR => win_etw_metadata::Level::ERROR,
             tracing::Level::WARN => win_etw_metadata::Level::WARN,
             tracing::Level::INFO => win_etw_metadata::Level::INFO,
-            tracing::Level::DEBUG | tracing::Level::TRACE => win_etw_metadata::Level::VERBOSE,
+            tracing::Level::DEBUG => win_etw_metadata::Level::VERBOSE,
+            tracing::Level::TRACE => {
+                keyword = self.trace_keyword;
+                win_etw_metadata::Level::VERBOSE
+            }
         };
 
         let event_descriptor = EventDescriptor {
@@ -129,7 +150,7 @@ impl TracelogSubscriber {
             level,
             opcode,
             task: 0,
-            keyword: self.filter_keyword(0),
+            keyword: self.filter_keyword(keyword),
         };
 
         if !self.provider.is_event_enabled(&event_descriptor) {
