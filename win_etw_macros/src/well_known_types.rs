@@ -81,7 +81,7 @@ well_known_types! {
     bool: bool => {
         is_ref: false,
         primitive: true,
-        in_type: InFlag::INT8,
+        in_type: InFlag::UINT8,
         out_type: Some(OutFlag::BOOLEAN),
     }
     u8: u8 => { is_ref: false, primitive: true, in_type: InFlag::UINT8, can_output_hex: true, }

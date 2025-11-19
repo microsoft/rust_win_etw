@@ -466,11 +466,9 @@ impl Visit for EventData {
 
     fn record_bool(&mut self, field: &Field, value: bool) {
         if self.write_name(field.name()) {
-            // Ideally we would use InFlag::UINT8 and the OutFlag::BOOLEAN, but
-            // WPA and other tools seem to ignore this. Use the four-byte input
-            // encoding instead.
-            self.metadata.put_u8(InFlag::BOOL32.bits());
-            self.data.put_u32_le(value.into());
+            self.metadata.put_u8(InFlag::UINT8.bits());
+            self.metadata.put_u8(OutFlag::BOOLEAN.bits());
+            self.data.put_u8(value.into());
         }
     }
 
