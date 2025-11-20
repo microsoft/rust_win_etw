@@ -18,7 +18,6 @@ use tracing::Subscriber;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
-use uuid::Uuid;
 use win_etw_metadata::InFlag;
 use win_etw_metadata::OutFlag;
 use win_etw_provider::Error;
