@@ -18,6 +18,7 @@ use tracing::Subscriber;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
+use uuid::Uuid;
 use win_etw_metadata::InFlag;
 use win_etw_metadata::OutFlag;
 use win_etw_provider::Error;
@@ -228,19 +229,15 @@ impl ActivityId {
 }
 
 struct ActivityIdVisitor {
-    value: Option<String>,
+    value: Option<GUID>,
 }
 
 impl Visit for ActivityIdVisitor {
-    fn record_str(&mut self, field: &Field, value: &str) {
-        if field.name() == "activity_id" {
-            self.value = Some(value.to_string());
-        }
-    }
-
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "activity_id" {
-            self.value = Some(format!("{:?}", value));
+            // Parse the GUID debug string using the uuid crate
+            let debug_str = format!("{:?}", value);
+            self.value = Uuid::parse_str(&debug_str).ok().map(|uuid| GUID::from(uuid));
         }
     }
 }
@@ -250,7 +247,7 @@ impl Visit for ActivityIdVisitor {
 fn extract_activity_id_attr(attrs: &Attributes<'_>) -> Option<GUID> {
     let mut visitor = ActivityIdVisitor { value: None };
     attrs.record(&mut visitor);
-    visitor.value.and_then(|s| GUID::from(s).ok())
+    visitor.value
 }
 
 const WINEVENT_OPCODE_INFO: u8 = 0;
