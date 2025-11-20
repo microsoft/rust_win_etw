@@ -265,7 +265,7 @@ where
                 // If not provided, get the current thread's activity ID
                 ActivityId::from_current_thread().unwrap_or_default()
             });
-        
+
         let related_activity_id = {
             if attrs.is_contextual() {
                 ctx.current_span().id().cloned()
