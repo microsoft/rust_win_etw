@@ -30,6 +30,5 @@ uuid = "1"
 std = []
 default = ["no_std"]
 no_std = []
-uuid = ["dep:uuid"]
 # dev is used only for development
 dev = ["std"]
