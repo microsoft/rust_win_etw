@@ -235,9 +235,9 @@ struct ActivityIdVisitor {
 impl Visit for ActivityIdVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "activity_id" {
-            // Parse the GUID debug string using the uuid crate
+            // Parse the GUID debug string
             let debug_str = format!("{:?}", value);
-            self.value = Uuid::parse_str(&debug_str).ok().map(|uuid| GUID::from(uuid));
+            self.value = GUID::from(debug_str.as_str()).into();
         }
     }
 }

@@ -122,6 +122,13 @@ impl From<uuid::Uuid> for GUID {
     }
 }
 
+impl From<&str> for GUID {
+    fn from(value: &str) -> Self {
+        let uuid = uuid::Uuid::parse_str(value).expect("Invalid string");
+        uuid.into()
+    }
+}
+
 #[cfg(feature = "uuid")]
 #[cfg(test)]
 mod test {
@@ -131,6 +138,16 @@ mod test {
     fn test_uuid() {
         let uuid = Uuid::parse_str("1a1a1a1a-2b2b-3c3c-4142-434546474849").unwrap();
         let guid: GUID = uuid.into();
+        assert_eq!(guid.data1, 0x1a1a_1a1a);
+        assert_eq!(guid.data2, 0x2b2b);
+        assert_eq!(guid.data3, 0x3c3c);
+        assert_eq!(guid.data4, [0x41, 0x42, 0x43, 0x45, 0x46, 0x47, 0x48, 0x49]);
+    }
+
+    #[test]
+    fn test_from_str() {
+        let guid_str = "1a1a1a1a-2b2b-3c3c-4142-434546474849";
+        let guid: GUID = GUID::from(guid_str);
         assert_eq!(guid.data1, 0x1a1a_1a1a);
         assert_eq!(guid.data2, 0x2b2b);
         assert_eq!(guid.data3, 0x3c3c);
