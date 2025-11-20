@@ -1,4 +1,3 @@
-use uuid::Uuid;
 use zerocopy::{FromBytes, IntoBytes};
 
 /// Initializes a `GUID` from literal values.
@@ -111,9 +110,11 @@ impl From<uuid::Uuid> for GUID {
     }
 }
 
+#[cfg(feature = "uuid")]
 impl From<&str> for GUID {
     fn from(value: &str) -> Self {
-        let uuid = uuid::Uuid::parse_str(value).expect("Invalid string");
+        use uuid::Uuid;
+        let uuid = Uuid::parse_str(value).expect("Invalid string");
         uuid.into()
     }
 }
