@@ -259,11 +259,13 @@ where
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         // Extract "activity_id" from attributes
-        let activity_id = extract_activity_id_attr(attrs).map(ActivityId).unwrap_or_else(|| {
-            // If not provided, get the current thread's activity ID
-            ActivityId::from_current_thread().unwrap_or_default()
-        });
-
+        let activity_id = extract_activity_id_attr(attrs)
+            .map(ActivityId)
+            .unwrap_or_else(|| {
+                // If not provided, get the current thread's activity ID
+                ActivityId::from_current_thread().unwrap_or_default()
+            });
+        
         let related_activity_id = {
             if attrs.is_contextual() {
                 ctx.current_span().id().cloned()
