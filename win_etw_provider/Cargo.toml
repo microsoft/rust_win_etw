@@ -18,7 +18,10 @@ win_etw_metadata = { version = "^0.1.2", path = "../win_etw_metadata" }
 uuid = {version = "1", optional = true}
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "^0.3", features = ["evntprov", "winerror", "evntrace"] }
+windows = { version = "0.62.2", features = ["Win32_System_Diagnostics_Etw", "Win32_Foundation"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62.2", features = ["Win32_System_Diagnostics_Etw", "Win32_Foundation", "Win32_Networking_WinSock"] }
 
 [dev-dependencies]
 atomic_lazy = { git = "https://github.com/sivadeilra/atomic_lazy" }

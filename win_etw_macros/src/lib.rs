@@ -1241,21 +1241,19 @@ fn uuid_to_expr(uuid: &Uuid) -> syn::Expr {
     let data4_6 = bytes[14];
     let data4_7 = bytes[15];
     parse_quote! {
-        ::win_etw_provider::GUID {
-            data1: #data1,
-            data2: #data2,
-            data3: #data3,
-            data4: [
-                #data4_0,
-                #data4_1,
-                #data4_2,
-                #data4_3,
-                #data4_4,
-                #data4_5,
-                #data4_6,
-                #data4_7,
-            ]
-        }
+        ::win_etw_provider::guid!(
+            #data1,
+            #data2,
+            #data3,
+            #data4_0,
+            #data4_1,
+            #data4_2,
+            #data4_3,
+            #data4_4,
+            #data4_5,
+            #data4_6,
+            #data4_7
+        )
     }
 }
 
