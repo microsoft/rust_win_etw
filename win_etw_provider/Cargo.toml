@@ -1,6 +1,6 @@
 [package]
 name = "win_etw_provider"
-version = "0.1.11"
+version = "0.1.12"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2018"
 description = "Enables apps to report events to Event Tracing for Windows (ETW)."
@@ -24,7 +24,6 @@ windows-sys = { version = "0.61.2", features = ["Win32_System_Diagnostics_Etw", 
 windows-sys = { version = "0.61.2", features = ["Win32_System_Diagnostics_Etw", "Win32_Foundation", "Win32_Networking_WinSock"] }
 
 [dev-dependencies]
-atomic_lazy = { git = "https://github.com/sivadeilra/atomic_lazy" }
 uuid = "1"
 
 [features]
@@ -32,4 +31,4 @@ std = []
 default = ["no_std"]
 no_std = []
 # dev is used only for development
-dev = []
+dev = ["std"]
