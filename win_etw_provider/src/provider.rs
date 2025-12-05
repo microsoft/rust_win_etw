@@ -95,9 +95,8 @@ impl<T: Provider> Provider for Option<T> {
         descriptor: &EventDescriptor,
         data: &[EventDataDescriptor<'_>],
     ) {
-        match self {
-            Some(p) => p.write(options, descriptor, data),
-            None => {}
+        if let Some(p) = self {
+            p.write(options, descriptor, data);
         }
     }
 
