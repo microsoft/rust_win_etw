@@ -2,12 +2,12 @@ use crate::guid::GUID;
 use crate::Level;
 use crate::{Error, EventDataDescriptor};
 use alloc::boxed::Box;
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::System::Diagnostics::Etw::{REGHANDLE, EventProviderSetTraits};
 use core::convert::TryFrom;
 use core::pin::Pin;
 use core::ptr::null;
 use core::sync::atomic::{AtomicU8, Ordering::SeqCst};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Diagnostics::Etw::{EventProviderSetTraits, REGHANDLE};
 
 #[cfg(target_os = "windows")]
 use win_support::*;
@@ -35,8 +35,7 @@ pub fn get_current_thread_activity_id() -> Result<GUID, Error> {
     {
         unsafe {
             let mut guid: windows_sys::core::GUID = core::mem::zeroed();
-            let error =
-                EventActivityIdControl(EVENT_ACTIVITY_CTRL_GET_ID, &mut guid);
+            let error = EventActivityIdControl(EVENT_ACTIVITY_CTRL_GET_ID, &mut guid);
             if error == 0 {
                 Ok(guid.into())
             } else {
@@ -166,8 +165,8 @@ impl Provider for EtwProvider {
                 let error = EventWriteEx(
                     self.handle,
                     &event_descriptor,
-                    0,                       // filter
-                    0,                       // flags
+                    0, // filter
+                    0, // flags
                     activity_id_ptr,
                     related_activity_id_ptr,
                     data.len() as u32,
@@ -226,16 +225,15 @@ fn write_failed(_error: u32) {
 
 #[cfg(target_os = "windows")]
 mod win_support {
-    pub use windows_sys::Win32::System::Diagnostics::Etw::{
-        EventActivityIdControl, EventWriteEx, EventProviderEnabled, EventEnabled,
-        EventRegister, EventUnregister, EventSetInformation,
-        EVENT_ACTIVITY_CTRL_GET_ID, EVENT_ACTIVITY_CTRL_CREATE_ID,
-        EVENT_ACTIVITY_CTRL_CREATE_SET_ID, EVENT_ACTIVITY_CTRL_SET_ID,
-        EVENT_DESCRIPTOR, EVENT_DATA_DESCRIPTOR, ENABLECALLBACK_ENABLED_STATE,
-        EVENT_FILTER_DESCRIPTOR, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-        EVENT_CONTROL_CODE_DISABLE_PROVIDER, EVENT_CONTROL_CODE_CAPTURE_STATE,
-    };
     pub use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    pub use windows_sys::Win32::System::Diagnostics::Etw::{
+        EventActivityIdControl, EventEnabled, EventProviderEnabled, EventRegister,
+        EventSetInformation, EventUnregister, EventWriteEx, ENABLECALLBACK_ENABLED_STATE,
+        EVENT_ACTIVITY_CTRL_CREATE_ID, EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
+        EVENT_ACTIVITY_CTRL_GET_ID, EVENT_ACTIVITY_CTRL_SET_ID, EVENT_CONTROL_CODE_CAPTURE_STATE,
+        EVENT_CONTROL_CODE_DISABLE_PROVIDER, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        EVENT_DATA_DESCRIPTOR, EVENT_DESCRIPTOR, EVENT_FILTER_DESCRIPTOR,
+    };
 
     use super::*;
 
@@ -316,10 +314,7 @@ mod win_support {
     pub fn new_activity_id() -> Result<GUID, Error> {
         unsafe {
             let mut guid: windows_sys::core::GUID = core::mem::zeroed();
-            let error = EventActivityIdControl(
-                EVENT_ACTIVITY_CTRL_CREATE_ID,
-                &mut guid,
-            );
+            let error = EventActivityIdControl(EVENT_ACTIVITY_CTRL_CREATE_ID, &mut guid);
             if error == 0 {
                 Ok(guid.into())
             } else {

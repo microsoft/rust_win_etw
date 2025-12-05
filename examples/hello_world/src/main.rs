@@ -48,7 +48,9 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
-        use windows_sys::Win32::Foundation::{STATUS_ABIOS_INVALID_COMMAND, ERROR_SXS_UNTRANSLATABLE_HRESULT, ERROR_OUT_OF_PAPER};
+        use windows_sys::Win32::Foundation::{
+            ERROR_OUT_OF_PAPER, ERROR_SXS_UNTRANSLATABLE_HRESULT, STATUS_ABIOS_INVALID_COMMAND,
+        };
 
         hello_provider.arg_hresult(None, ERROR_SXS_UNTRANSLATABLE_HRESULT as i32);
         hello_provider.arg_ntstatus(None, STATUS_ABIOS_INVALID_COMMAND as u32);
