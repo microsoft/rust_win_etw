@@ -2,6 +2,8 @@ use crate::guid::GUID;
 use crate::Level;
 use crate::{Error, EventDataDescriptor};
 use alloc::boxed::Box;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Diagnostics::Etw::REGHANDLE;
 use core::convert::TryFrom;
 use core::pin::Pin;
 use core::ptr::null;
@@ -117,7 +119,7 @@ impl<T: Provider> Provider for Option<T> {
 /// Implements `Provider` by registering with ETW.
 pub struct EtwProvider {
     #[cfg(target_os = "windows")]
-    handle: i64,
+    handle: REGHANDLE,
 
     #[cfg(target_os = "windows")]
     // #[allow(dead_code)] // Needed for lifetime control
@@ -338,7 +340,7 @@ impl EtwProvider {
                 let mut stable = Box::pin(StableProviderData {
                     max_level: AtomicU8::new(0),
                 });
-                let mut handle: i64 = 0;
+                let mut handle: REGHANDLE = 0;
                 let stable_ptr: &mut StableProviderData = &mut stable;
                 let error = EventRegister(
                     provider_id as *const _ as *const windows_sys::core::GUID,
