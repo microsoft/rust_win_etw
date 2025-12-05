@@ -3,7 +3,7 @@ use crate::Level;
 use crate::{Error, EventDataDescriptor};
 use alloc::boxed::Box;
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::System::Diagnostics::Etw::REGHANDLE;
+use windows_sys::Win32::System::Diagnostics::Etw::{REGHANDLE, EventProviderSetTraits};
 use core::convert::TryFrom;
 use core::pin::Pin;
 use core::ptr::null;
@@ -369,7 +369,7 @@ impl EtwProvider {
             unsafe {
                 let error = EventSetInformation(
                     self.handle,
-                    2, // EventProviderSetTraits
+                    EventProviderSetTraits,
                     provider_metadata.as_ptr() as *const core::ffi::c_void,
                     u32::try_from(provider_metadata.len()).unwrap(),
                 );
@@ -402,7 +402,7 @@ impl EtwProvider {
             unsafe {
                 let error = EventSetInformation(
                     self.handle,
-                    1, // EventProviderSetTraits
+                    EventProviderSetTraits,
                     provider_traits.as_ptr() as *const core::ffi::c_void,
                     u32::try_from(provider_traits.len()).unwrap(),
                 );
