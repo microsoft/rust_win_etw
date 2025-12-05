@@ -86,8 +86,8 @@ impl core::fmt::Debug for GUID {
 }
 
 #[cfg(target_os = "windows")]
-impl From<windows::core::GUID> for GUID {
-    fn from(value: windows::core::GUID) -> Self {
+impl From<windows_sys::core::GUID> for GUID {
+    fn from(value: windows_sys::core::GUID) -> Self {
         Self {
             data1: value.data1,
             data2: value.data2,
@@ -98,7 +98,7 @@ impl From<windows::core::GUID> for GUID {
 }
 
 #[cfg(target_os = "windows")]
-impl From<GUID> for windows::core::GUID {
+impl From<GUID> for windows_sys::core::GUID {
     fn from(value: GUID) -> Self {
         Self {
             data1: value.data1,

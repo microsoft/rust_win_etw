@@ -14,7 +14,7 @@ win_etw_provider = { path = "../../win_etw_provider", features = ["std"] }
 widestring = "^1.0"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62.2", features = ["Win32_Foundation"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation"] }
 
 [features]
 default = []

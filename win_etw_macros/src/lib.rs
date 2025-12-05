@@ -112,7 +112,7 @@
 //!   `&[bool]` is not supported because `bool` does not have a guaranteed stable representation.
 //! * Windows `[FILETIME](https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-filetime)`.
 //!   The type must be declared _exactly_ as `FILETIME`; type aliases or fully-qualified paths
-//!   (such as `winapi::shared::minwindef::FILETIME`) _will not work_. The parameter type in the
+//!   (such as `windows_sys::Win32::Foundation::FILETIME`) _will not work_. The parameter type in the
 //!   generated code will be `win_etw_provider::FILETIME`, which is a newtype over `u64`.
 //! * `std::time::SystemTime` is supported, but it must be declared _exactly_ as `SystemTime`;
 //!   type aliases or fully-qualified paths (such as `std::time::SystemTime`) _will not work_.

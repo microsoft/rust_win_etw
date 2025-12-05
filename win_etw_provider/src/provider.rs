@@ -32,7 +32,7 @@ pub fn get_current_thread_activity_id() -> Result<GUID, Error> {
     #[cfg(target_os = "windows")]
     {
         unsafe {
-            let mut guid: windows::core::GUID = core::mem::zeroed();
+            let mut guid: windows_sys::core::GUID = core::mem::zeroed();
             let error =
                 EventActivityIdControl(EVENT_ACTIVITY_CTRL_GET_ID, &mut guid);
             if error == 0 {
@@ -117,7 +117,7 @@ impl<T: Provider> Provider for Option<T> {
 /// Implements `Provider` by registering with ETW.
 pub struct EtwProvider {
     #[cfg(target_os = "windows")]
-    handle: REGHANDLE,
+    handle: i64,
 
     #[cfg(target_os = "windows")]
     // #[allow(dead_code)] // Needed for lifetime control
@@ -150,11 +150,11 @@ impl Provider for EtwProvider {
 
                 if let Some(options) = options {
                     if let Some(id) = options.activity_id.as_ref() {
-                        activity_id_ptr = id as *const GUID as *const windows::core::GUID;
+                        activity_id_ptr = id as *const GUID as *const windows_sys::core::GUID;
                     }
                     if let Some(id) = options.related_activity_id.as_ref() {
                         related_activity_id_ptr =
-                            id as *const GUID as *const windows::core::GUID;
+                            id as *const GUID as *const windows_sys::core::GUID;
                     }
                     if let Some(level) = options.level {
                         event_descriptor.Level = level.0;
@@ -166,9 +166,10 @@ impl Provider for EtwProvider {
                     &event_descriptor,
                     0,                       // filter
                     0,                       // flags
-                    if activity_id_ptr.is_null() { None } else { Some(activity_id_ptr) },
-                    if related_activity_id_ptr.is_null() { None } else { Some(related_activity_id_ptr) },
-                    Some(core::slice::from_raw_parts(data.as_ptr() as *const EVENT_DATA_DESCRIPTOR, data.len())),
+                    activity_id_ptr,
+                    related_activity_id_ptr,
+                    data.len() as u32,
+                    data.as_ptr() as *const EVENT_DATA_DESCRIPTOR,
                 );
                 if error != 0 {
                     write_failed(error)
@@ -223,8 +224,16 @@ fn write_failed(_error: u32) {
 
 #[cfg(target_os = "windows")]
 mod win_support {
-    pub use windows::Win32::System::Diagnostics::Etw::*;
-    pub use windows::Win32::Foundation::*;
+    pub use windows_sys::Win32::System::Diagnostics::Etw::{
+        EventActivityIdControl, EventWriteEx, EventProviderEnabled, EventEnabled,
+        EventRegister, EventUnregister, EventSetInformation,
+        EVENT_ACTIVITY_CTRL_GET_ID, EVENT_ACTIVITY_CTRL_CREATE_ID,
+        EVENT_ACTIVITY_CTRL_CREATE_SET_ID, EVENT_ACTIVITY_CTRL_SET_ID,
+        EVENT_DESCRIPTOR, EVENT_DATA_DESCRIPTOR, ENABLECALLBACK_ENABLED_STATE,
+        EVENT_FILTER_DESCRIPTOR, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        EVENT_CONTROL_CODE_DISABLE_PROVIDER, EVENT_CONTROL_CODE_CAPTURE_STATE,
+    };
+    pub use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 
     use super::*;
 
@@ -236,8 +245,9 @@ mod win_support {
     }
 
     /// See [PENABLECALLBACK](https://docs.microsoft.com/en-us/windows/win32/api/evntprov/nc-evntprov-penablecallback).
+    #[allow(non_snake_case)]
     pub(crate) unsafe extern "system" fn enable_callback(
-        _source_id: *const windows::core::GUID,
+        _source_id: *const windows_sys::core::GUID,
         is_enabled_code: ENABLECALLBACK_ENABLED_STATE,
         level: u8,
         _match_any_keyword: u64,
@@ -303,7 +313,7 @@ mod win_support {
 
     pub fn new_activity_id() -> Result<GUID, Error> {
         unsafe {
-            let mut guid: windows::core::GUID = core::mem::zeroed();
+            let mut guid: windows_sys::core::GUID = core::mem::zeroed();
             let error = EventActivityIdControl(
                 EVENT_ACTIVITY_CTRL_CREATE_ID,
                 &mut guid,
@@ -328,12 +338,12 @@ impl EtwProvider {
                 let mut stable = Box::pin(StableProviderData {
                     max_level: AtomicU8::new(0),
                 });
-                let mut handle: REGHANDLE = REGHANDLE::default();
+                let mut handle: i64 = 0;
                 let stable_ptr: &mut StableProviderData = &mut stable;
                 let error = EventRegister(
-                    provider_id as *const _ as *const windows::core::GUID,
+                    provider_id as *const _ as *const windows_sys::core::GUID,
                     Some(enable_callback),
-                    Some(stable_ptr as *mut StableProviderData as *mut core::ffi::c_void),
+                    stable_ptr as *mut StableProviderData as *mut core::ffi::c_void,
                     &mut handle,
                 );
                 if error != 0 {
@@ -357,7 +367,7 @@ impl EtwProvider {
             unsafe {
                 let error = EventSetInformation(
                     self.handle,
-                    EVENT_INFO_CLASS(2),
+                    2, // EventProviderSetTraits
                     provider_metadata.as_ptr() as *const core::ffi::c_void,
                     u32::try_from(provider_metadata.len()).unwrap(),
                 );
@@ -390,7 +400,7 @@ impl EtwProvider {
             unsafe {
                 let error = EventSetInformation(
                     self.handle,
-                    EventProviderSetTraits,
+                    1, // EventProviderSetTraits
                     provider_traits.as_ptr() as *const core::ffi::c_void,
                     u32::try_from(provider_traits.len()).unwrap(),
                 );
@@ -458,9 +468,9 @@ pub fn with_activity<F: FnOnce() -> R, R>(f: F) -> R {
         unsafe {
             let result = EventActivityIdControl(
                 EVENT_ACTIVITY_CTRL_CREATE_SET_ID,
-                &mut previous_activity_id as *mut _ as *mut windows::core::GUID,
+                &mut previous_activity_id as *mut _ as *mut windows_sys::core::GUID,
             );
-            if result == ERROR_SUCCESS.0 {
+            if result == ERROR_SUCCESS {
                 restore.previous_activity_id = Some(previous_activity_id);
             } else {
                 // Failed to create/replace the activity ID. There is not much we can do about this.
@@ -492,7 +502,7 @@ impl Drop for RestoreActivityHolder {
                 if let Some(previous_activity_id) = self.previous_activity_id.as_ref() {
                     EventActivityIdControl(
                         EVENT_ACTIVITY_CTRL_SET_ID,
-                        previous_activity_id as *const GUID as *const windows::core::GUID
+                        previous_activity_id as *const GUID as *const windows_sys::core::GUID
                             as *mut _,
                     );
                 }
