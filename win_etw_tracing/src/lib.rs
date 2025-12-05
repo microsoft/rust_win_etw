@@ -373,7 +373,7 @@ impl DeferredValues {
 
 impl Visit for DeferredValues {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        self.update(field, DeferredValue::String(format!("{:?}", value)));
+        self.update(field, DeferredValue::String(format!("{value:?}")));
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
@@ -405,7 +405,7 @@ struct EventName<'a>(&'a mut Vec<u8>);
 impl Visit for EventName<'_> {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         if field.name() == "message" {
-            let _ = write!(self.0, "{:?}", value);
+            let _ = write!(self.0, "{value:?}");
         }
     }
 }
@@ -444,7 +444,7 @@ impl Visit for EventData {
             self.metadata
                 .put_u8((InFlag::ANSI_STRING | InFlag::CHAIN_FLAG).bits());
             self.metadata.put_u8(OutFlag::UTF8.bits());
-            let _ = write!(&mut self.data, "{:?}\0", value);
+            let _ = write!(&mut self.data, "{value:?}\0");
         }
     }
 
@@ -487,10 +487,10 @@ impl Visit for EventData {
             self.metadata
                 .put_u8((InFlag::ANSI_STRING | InFlag::CHAIN_FLAG).bits());
             self.metadata.put_u8(OutFlag::UTF8.bits());
-            let _ = write!(&mut self.data, "{}", value);
+            let _ = write!(&mut self.data, "{value}");
             let mut source = value.source();
             while let Some(v) = source.take() {
-                let _ = write!(&mut self.data, ": {}", v);
+                let _ = write!(&mut self.data, ": {v}");
                 source = v.source();
             }
             self.data.put_u8(0); // null terminator
