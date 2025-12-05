@@ -86,13 +86,25 @@ impl core::fmt::Debug for GUID {
 }
 
 #[cfg(target_os = "windows")]
-impl From<winapi::shared::guiddef::GUID> for GUID {
-    fn from(value: winapi::shared::guiddef::GUID) -> Self {
+impl From<windows_sys::core::GUID> for GUID {
+    fn from(value: windows_sys::core::GUID) -> Self {
         Self {
-            data1: value.Data1,
-            data2: value.Data2,
-            data3: value.Data3,
-            data4: value.Data4,
+            data1: value.data1,
+            data2: value.data2,
+            data3: value.data3,
+            data4: value.data4,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl From<GUID> for windows_sys::core::GUID {
+    fn from(value: GUID) -> Self {
+        Self {
+            data1: value.data1,
+            data2: value.data2,
+            data3: value.data3,
+            data4: value.data4,
         }
     }
 }

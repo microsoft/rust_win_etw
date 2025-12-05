@@ -48,12 +48,13 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
-        pub use winapi::shared::ntstatus;
-        pub use winapi::shared::winerror;
+        use windows_sys::Win32::Foundation::{
+            ERROR_OUT_OF_PAPER, ERROR_SXS_UNTRANSLATABLE_HRESULT, STATUS_ABIOS_INVALID_COMMAND,
+        };
 
-        hello_provider.arg_hresult(None, winerror::DXGI_DDI_ERR_WASSTILLDRAWING);
-        hello_provider.arg_ntstatus(None, ntstatus::STATUS_DEVICE_REQUIRES_CLEANING as u32);
-        hello_provider.arg_win32error(None, winerror::ERROR_OUT_OF_PAPER);
+        hello_provider.arg_hresult(None, ERROR_SXS_UNTRANSLATABLE_HRESULT as i32);
+        hello_provider.arg_ntstatus(None, STATUS_ABIOS_INVALID_COMMAND as u32);
+        hello_provider.arg_win32error(None, ERROR_OUT_OF_PAPER);
     }
 
     let args = std::env::args().collect::<Vec<String>>();
