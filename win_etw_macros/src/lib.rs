@@ -1081,59 +1081,99 @@ impl syn::parse::Parse for ProviderAttributes {
             let guid_str = lit_str.value();
             if let Ok(value) = guid_str.parse::<Uuid>() {
                 if value == Uuid::nil() {
-                    Err(syn::Error::new_spanned(lit_str, "The GUID cannot be the NIL (all-zeroes) GUID."))
+                    Err(syn::Error::new_spanned(
+                        lit_str,
+                        "The GUID cannot be the NIL (all-zeroes) GUID.",
+                    ))
                 } else {
                     Ok(value)
                 }
             } else {
-                Err(syn::Error::new_spanned(lit_str, "The attribute value is required to be a valid GUID."))
+                Err(syn::Error::new_spanned(
+                    lit_str,
+                    "The attribute value is required to be a valid GUID.",
+                ))
             }
         };
 
-        let meta_list = syn::punctuated::Punctuated::<syn::Meta, Token![,]>::parse_terminated(stream)?;
+        let meta_list =
+            syn::punctuated::Punctuated::<syn::Meta, Token![,]>::parse_terminated(stream)?;
 
         for meta in meta_list.iter() {
             match meta {
                 syn::Meta::NameValue(nv) => {
                     if nv.path.is_ident("guid") {
-                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit_str), .. }) = &nv.value {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit_str),
+                            ..
+                        }) = &nv.value
+                        {
                             let uuid = parse_guid_value(lit_str)?;
                             if uuid_opt.is_some() {
-                                return Err(syn::Error::new_spanned(&nv.path, "The 'guid' attribute key cannot be specified more than once."));
+                                return Err(syn::Error::new_spanned(
+                                    &nv.path,
+                                    "The 'guid' attribute key cannot be specified more than once.",
+                                ));
                             }
                             uuid_opt = Some(uuid);
                         } else {
-                            return Err(syn::Error::new_spanned(&nv.value, "The attribute value is required to be a GUID in string form."));
+                            return Err(syn::Error::new_spanned(
+                                &nv.value,
+                                "The attribute value is required to be a GUID in string form.",
+                            ));
                         }
                     } else if nv.path.is_ident("name") {
-                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = &nv.value {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(s),
+                            ..
+                        }) = &nv.value
+                        {
                             if provider_name.is_none() {
                                 provider_name = Some(s.value());
                             } else {
-                                return Err(syn::Error::new_spanned(&nv.path, "The 'name' attribute can only be specified once."));
+                                return Err(syn::Error::new_spanned(
+                                    &nv.path,
+                                    "The 'name' attribute can only be specified once.",
+                                ));
                             }
                         } else {
-                            return Err(syn::Error::new_spanned(&nv.value, "The 'name' attribute key requires a string value."));
+                            return Err(syn::Error::new_spanned(
+                                &nv.value,
+                                "The 'name' attribute key requires a string value.",
+                            ));
                         }
                     } else if nv.path.is_ident("provider_group_guid") {
-                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit_str), .. }) = &nv.value {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit_str),
+                            ..
+                        }) = &nv.value
+                        {
                             let uuid = parse_guid_value(lit_str)?;
                             if provider_group_guid.is_some() {
                                 return Err(syn::Error::new_spanned(&nv.path, "The 'provider_group_guid' attribute key cannot be specified more than once."));
                             }
                             provider_group_guid = Some(uuid);
                         } else {
-                            return Err(syn::Error::new_spanned(&nv.value, "The attribute value is required to be a GUID in string form."));
+                            return Err(syn::Error::new_spanned(
+                                &nv.value,
+                                "The attribute value is required to be a GUID in string form.",
+                            ));
                         }
                     } else {
-                        return Err(syn::Error::new_spanned(&nv.path, "Unrecognized attribute key."));
+                        return Err(syn::Error::new_spanned(
+                            &nv.path,
+                            "Unrecognized attribute key.",
+                        ));
                     }
                 }
                 syn::Meta::Path(path) if path.is_ident("static_mode") => {
                     // eprintln!("Found 'static'");
                 }
                 _ => {
-                    return Err(syn::Error::new_spanned(meta, "Unrecognized attribute item."));
+                    return Err(syn::Error::new_spanned(
+                        meta,
+                        "Unrecognized attribute item.",
+                    ));
                 }
             }
         }
@@ -1257,7 +1297,9 @@ fn parse_event_attributes(
                             "info" => quote!(INFO),
                             "verbose" => quote!(VERBOSE),
                             _ => {
-                                return Err(meta.error("The value specified for 'level' is not a valid string."));
+                                return Err(meta.error(
+                                    "The value specified for 'level' is not a valid string.",
+                                ));
                             }
                         };
                         level = parse_quote!(::win_etw_provider::Level::#level_ident);
@@ -1280,7 +1322,8 @@ fn parse_event_attributes(
                     });
                 } else if meta.path.is_ident("keyword") {
                     if keyword.is_some() {
-                        return Err(meta.error("The 'keyword' attribute cannot be specified more than once."));
+                        return Err(meta
+                            .error("The 'keyword' attribute cannot be specified more than once."));
                     }
                     let lit: Lit = meta.value()?.parse()?;
                     keyword = Some(Expr::Lit(ExprLit {
