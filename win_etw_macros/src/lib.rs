@@ -201,10 +201,8 @@
 
 extern crate proc_macro;
 
-mod errors;
 mod well_known_types;
 
-use errors::{CombinedErrors, ErrorScope};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use std::{collections::HashMap, iter::Extend};
@@ -266,7 +264,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
     let mut output = TokenStream::new();
 
     let provider_metadata_ident = Ident::new(
-        &format!("{}_PROVIDER_METADATA", provider_ident_string),
+        &format!("{provider_ident_string}_PROVIDER_METADATA"),
         provider_ident.span(),
     );
 
@@ -294,7 +292,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
         .items
         .iter()
         .filter_map(|item| {
-            if let syn::TraitItem::Method(m) = item {
+            if let syn::TraitItem::Fn(m) = item {
                 Some(m)
             } else {
                 None
@@ -381,10 +379,10 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
                 FnArg::Typed(param_typed) => {
                     let mut event_attr: Option<syn::Attribute> = None;
                     param_typed.attrs.retain(|a| {
-                        if a.path == parse_quote!(event) {
+                        if a.path() == &parse_quote!(event) {
                             event_attr = Some(a.clone());
                             false
-                        } else if a.path == parse_quote!(doc) {
+                        } else if a.path() == &parse_quote!(doc) {
                             true
                         } else {
                             errors.push(Error::new_spanned(
@@ -491,10 +489,7 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
             if let Some(previous) = event_id_mappings.get(&event_id) {
                 errors.push(Error::new(
                     method.span(),
-                    format!(
-                        "Event id {} has already been defined on {}.",
-                        event_id, previous
-                    ),
+                    format!("Event id {event_id} has already been defined on {previous}."),
                 ));
             }
             event_id_mappings.insert(event_id, identifier);
@@ -594,14 +589,12 @@ fn trace_logging_events_core(attr: TokenStream, item_tokens: TokenStream) -> Tok
     let provider_doc_attrs = logging_trait
         .attrs
         .iter()
-        .filter(|a| a.path == doc_path)
+        .filter(|a| a.path() == &doc_path)
         .collect::<Vec<_>>();
 
     // Build a code fragment that registers the provider traits.
-    let register_traits: TokenStream = create_register_provider_traits(
-        &provider_name,
-        provider_attrs.provider_group_guid.as_ref(),
-    );
+    let register_traits: TokenStream =
+        create_register_provider_traits(provider_name, provider_attrs.provider_group_guid.as_ref());
 
     output.extend(quote! {
         #( #provider_doc_attrs )*
@@ -791,57 +784,23 @@ fn parse_event_field(
     // The user can annotate fields with #[event(...)] in order to specify output formats.
     let mut output_hex = false;
     if let Some(event_attr) = event_attr {
-        match event_attr.parse_meta() {
-            Ok(syn::Meta::List(list)) => {
-                for item in list.nested.iter() {
-                    match item {
-                        syn::NestedMeta::Meta(syn::Meta::NameValue(syn::MetaNameValue {
-                            path,
-                            lit,
-                            ..
-                        })) => {
-                            if path.is_ident("output") {
-                                match &lit {
-                                    Lit::Str(lit) => {
-                                        let output_string = lit.value();
-                                        match output_string.as_str() {
-                                            "hex" => {
-                                                output_hex = true;
-                                            }
-                                            _ => {
-                                                errors.push(Error::new_spanned(
-                                                    path,
-                                                    "Output format is not recognized.",
-                                                ));
-                                            }
-                                        }
-                                    }
-                                    _ => errors.push(Error::new_spanned(
-                                        path,
-                                        "This metadata is expected to be a string.",
-                                    )),
-                                }
-                            } else {
-                                errors.push(Error::new_spanned(
-                                    path,
-                                    "This metadata key is not recognized.",
-                                ));
-                            }
-                        }
-                        _ => errors.push(Error::new_spanned(
-                            item,
-                            "This metadata item is not recognized.",
-                        )),
+        if let Err(e) = event_attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("output") {
+                let value: syn::LitStr = meta.value()?.parse()?;
+                match value.value().as_str() {
+                    "hex" => {
+                        output_hex = true;
+                    }
+                    _ => {
+                        return Err(meta.error("Output format is not recognized."));
                     }
                 }
+            } else {
+                return Err(meta.error("This metadata key is not recognized."));
             }
-            Ok(_) => errors.push(Error::new_spanned(
-                event_attr,
-                "This metadata is not recognized.",
-            )),
-            Err(e) => {
-                errors.push(e);
-            }
+            Ok(())
+        }) {
+            errors.push(e);
         }
     }
 
@@ -856,7 +815,7 @@ fn parse_event_field(
             parse_quote!(#in_type)
         };
 
-        if let Some(out_type) = t.opts.out_type {
+        if let Some(out_type) = &t.opts.out_type {
             let out_type: u8 = out_type.bits();
             field_metadata_out_type = Some(parse_quote!(#out_type));
         } else {
@@ -1114,80 +1073,112 @@ struct ProviderAttributes {
 
 impl syn::parse::Parse for ProviderAttributes {
     fn parse(stream: syn::parse::ParseStream) -> syn::Result<Self> {
-        let mut errors = CombinedErrors::default();
-
         let mut uuid_opt = None;
-        let items: syn::punctuated::Punctuated<syn::Meta, Token![,]> =
-            stream.parse_terminated(syn::Meta::parse)?;
-
         let mut provider_group_guid: Option<Uuid> = None;
+        let mut provider_name = None;
 
-        let parse_guid_value = |lit: &Lit, scope: &mut ErrorScope| -> Uuid {
-            if let syn::Lit::Str(s) = lit {
-                let guid_str = s.value();
-                if let Ok(value) = guid_str.parse::<Uuid>() {
-                    if value == Uuid::nil() {
-                        scope.msg("The GUID cannot be the NIL (all-zeroes) GUID.");
-                    }
-                    value
+        let parse_guid_value = |lit_str: &syn::LitStr| -> Result<Uuid, syn::Error> {
+            let guid_str = lit_str.value();
+            if let Ok(value) = guid_str.parse::<Uuid>() {
+                if value == Uuid::nil() {
+                    Err(syn::Error::new_spanned(
+                        lit_str,
+                        "The GUID cannot be the NIL (all-zeroes) GUID.",
+                    ))
                 } else {
-                    scope.msg("The attribute value is required to be a valid GUID.");
-                    Uuid::nil()
+                    Ok(value)
                 }
             } else {
-                scope.msg("The attribute value is required to be a GUID in string form.");
-                Uuid::nil()
+                Err(syn::Error::new_spanned(
+                    lit_str,
+                    "The attribute value is required to be a valid GUID.",
+                ))
             }
         };
 
-        let mut provider_name = None;
-        for item in items.iter() {
-            errors.scope(item.span(), |scope| {
-                match item {
-                    syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
-                        if path.is_ident("guid") {
-                            let uuid = parse_guid_value(lit, scope);
+        let meta_list =
+            syn::punctuated::Punctuated::<syn::Meta, Token![,]>::parse_terminated(stream)?;
+
+        for meta in meta_list.iter() {
+            match meta {
+                syn::Meta::NameValue(nv) => {
+                    if nv.path.is_ident("guid") {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit_str),
+                            ..
+                        }) = &nv.value
+                        {
+                            let uuid = parse_guid_value(lit_str)?;
                             if uuid_opt.is_some() {
-                                scope.msg(
+                                return Err(syn::Error::new_spanned(
+                                    &nv.path,
                                     "The 'guid' attribute key cannot be specified more than once.",
-                                );
-                            } else {
-                                uuid_opt = Some(uuid);
+                                ));
                             }
-                        } else if path.is_ident("name") {
-                            if let syn::Lit::Str(s) = lit {
-                                if provider_name.is_none() {
-                                    provider_name = Some(s.value());
-                                } else {
-                                    scope.msg("The 'name' attribute can only be specified once.");
-                                }
+                            uuid_opt = Some(uuid);
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                &nv.value,
+                                "The attribute value is required to be a GUID in string form.",
+                            ));
+                        }
+                    } else if nv.path.is_ident("name") {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(s),
+                            ..
+                        }) = &nv.value
+                        {
+                            if provider_name.is_none() {
+                                provider_name = Some(s.value());
                             } else {
-                                scope.msg("The 'name' attribute key requires a string value.");
-                            }
-                        } else if path.is_ident("provider_group_guid") {
-                            let uuid = parse_guid_value(lit, scope);
-                            if provider_group_guid.is_some() {
-                                scope.msg("The 'provider_group_guid' attribute key cannot be specified more than once.");
-                            } else {
-                                provider_group_guid = Some(uuid);
+                                return Err(syn::Error::new_spanned(
+                                    &nv.path,
+                                    "The 'name' attribute can only be specified once.",
+                                ));
                             }
                         } else {
-                            scope.msg("Unrecognized attribute key.");
+                            return Err(syn::Error::new_spanned(
+                                &nv.value,
+                                "The 'name' attribute key requires a string value.",
+                            ));
                         }
-                    }
-                    syn::Meta::Path(path) if path.is_ident("static_mode") => {
-                        // eprintln!("Found 'static'");
-                    }
-                    _ => {
-                        // eprintln!("item: {:#?}", item);
-                        scope.msg("Unrecognized attribute item.");
+                    } else if nv.path.is_ident("provider_group_guid") {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit_str),
+                            ..
+                        }) = &nv.value
+                        {
+                            let uuid = parse_guid_value(lit_str)?;
+                            if provider_group_guid.is_some() {
+                                return Err(syn::Error::new_spanned(&nv.path, "The 'provider_group_guid' attribute key cannot be specified more than once."));
+                            }
+                            provider_group_guid = Some(uuid);
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                &nv.value,
+                                "The attribute value is required to be a GUID in string form.",
+                            ));
+                        }
+                    } else {
+                        return Err(syn::Error::new_spanned(
+                            &nv.path,
+                            "Unrecognized attribute key.",
+                        ));
                     }
                 }
-                Ok(())
-            });
+                syn::Meta::Path(path) if path.is_ident("static_mode") => {
+                    // eprintln!("Found 'static'");
+                }
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        meta,
+                        "Unrecognized attribute item.",
+                    ));
+                }
+            }
         }
 
-        errors.into_result(ProviderAttributes {
+        Ok(ProviderAttributes {
             uuid: uuid_opt,
             provider_name,
             provider_group_guid,
@@ -1286,108 +1277,75 @@ fn parse_event_attributes(
     let enable_default_event_doc = false;
 
     for attr in input_method_attrs.iter() {
-        if attr.path == parse_quote!(doc) {
+        if attr.path() == &parse_quote!(doc) {
             method_attrs.push(attr.clone());
             event_already_has_doc = true;
-        } else if attr.path.is_ident("event") {
+        } else if attr.path().is_ident("event") {
             // The #[event] attribute lets the application specify the level, opcode, task,
             // keyword, etc.
-            match attr.parse_meta() {
-                Ok(syn::Meta::List(list)) => {
-                    for item in list.nested.iter() {
-                        match item {
-                            syn::NestedMeta::Meta(syn::Meta::NameValue(syn::MetaNameValue {
-                                path,
-                                lit,
-                                ..
-                            })) => {
-                                if path.is_ident("level") {
-                                    match lit {
-                                        Lit::Str(lit_str) => {
-                                            let level_ident = match lit_str.value().as_str() {
-                                                "critical" => quote!(CRITICAL),
-                                                "error" => quote!(ERROR),
-                                                "warn" => quote!(WARN),
-                                                "info" => quote!(INFO),
-                                                "verbose" => quote!(VERBOSE),
-                                                _ => {
-                                                    errors.push(Error::new_spanned(item, "The value specified for 'level' is not a valid string."));
-                                                    quote!(VERBOSE)
-                                                }
-                                            };
-                                            level = parse_quote!(::win_etw_provider::Level::#level_ident);
-                                        }
-                                        Lit::Int(_) => {
-                                            level = parse_quote!(::win_etw_provider::Level(#lit));
-                                        }
-                                        _ => {
-                                            errors.push(Error::new_spanned(item, "The value specified for 'level' is not recognized."));
-                                        }
-                                    }
-                                } else if path.is_ident("opcode") {
-                                    opcode = Expr::Lit(ExprLit {
-                                        lit: lit.clone(),
-                                        attrs: Vec::new(),
-                                    });
-                                } else if path.is_ident("task") {
-                                    task = Expr::Lit(ExprLit {
-                                        lit: lit.clone(),
-                                        attrs: Vec::new(),
-                                    });
-                                } else if path.is_ident("keyword") {
-                                    if keyword.is_some() {
-                                        errors.push(Error::new(attr.span(), "The 'keyword' attribute cannot be specified more than once."));
-                                    } else {
-                                        keyword = Some(Expr::Lit(ExprLit {
-                                            lit: lit.clone(),
-                                            attrs: Vec::new(),
-                                        }));
-                                    }
-                                } else if path.is_ident("id") {
-                                    if event_id.is_some() {
-                                        errors.push(Error::new(
-                                            lit.span(),
-                                            "Event id has already been defined.".to_string(),
-                                        ));
-                                    } else if let Lit::Int(lit_int) = lit {
-                                        if let Ok(int_value) = lit_int.base10_parse() {
-                                            event_id = Some(int_value);
-                                        } else {
-                                            errors.push(Error::new(
-                                                lit.span(),
-                                                "Event id must be a u16.".to_string(),
-                                            ));
-                                        }
-                                    } else {
-                                        errors.push(Error::new(
-                                            lit.span(),
-                                            "Event id must be a u16.".to_string(),
-                                        ));
-                                    }
-                                } else {
-                                    errors
-                                        .push(Error::new_spanned(item, "Unrecognized attribute."));
-                                }
-                            }
+            if let Err(e) = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("level") {
+                    let value = &meta.value()?;
+                    // Peek to see if it's a string or int literal
+                    let lookahead = value.lookahead1();
+                    if lookahead.peek(syn::LitStr) {
+                        let lit_str: syn::LitStr = value.parse()?;
+                        let level_ident = match lit_str.value().as_str() {
+                            "critical" => quote!(CRITICAL),
+                            "error" => quote!(ERROR),
+                            "warn" => quote!(WARN),
+                            "info" => quote!(INFO),
+                            "verbose" => quote!(VERBOSE),
                             _ => {
-                                errors.push(Error::new_spanned(item, "Unrecognized attribute."));
+                                return Err(meta.error(
+                                    "The value specified for 'level' is not a valid string.",
+                                ));
                             }
-                        }
+                        };
+                        level = parse_quote!(::win_etw_provider::Level::#level_ident);
+                    } else {
+                        // Parse as any literal for numeric levels
+                        let lit: Lit = value.parse()?;
+                        level = parse_quote!(::win_etw_provider::Level(#lit));
                     }
+                } else if meta.path.is_ident("opcode") {
+                    let lit: Lit = meta.value()?.parse()?;
+                    opcode = Expr::Lit(ExprLit {
+                        lit,
+                        attrs: Vec::new(),
+                    });
+                } else if meta.path.is_ident("task") {
+                    let lit: Lit = meta.value()?.parse()?;
+                    task = Expr::Lit(ExprLit {
+                        lit,
+                        attrs: Vec::new(),
+                    });
+                } else if meta.path.is_ident("keyword") {
+                    if keyword.is_some() {
+                        return Err(meta
+                            .error("The 'keyword' attribute cannot be specified more than once."));
+                    }
+                    let lit: Lit = meta.value()?.parse()?;
+                    keyword = Some(Expr::Lit(ExprLit {
+                        lit,
+                        attrs: Vec::new(),
+                    }));
+                } else if meta.path.is_ident("id") {
+                    if event_id.is_some() {
+                        return Err(meta.error("Event id has already been defined."));
+                    }
+                    let lit_int: syn::LitInt = meta.value()?.parse()?;
+                    if let Ok(int_value) = lit_int.base10_parse() {
+                        event_id = Some(int_value);
+                    } else {
+                        return Err(meta.error("Event id must be a u16."));
+                    }
+                } else {
+                    return Err(meta.error("Unrecognized attribute."));
                 }
-                Ok(_) => {
-                    errors.push(Error::new_spanned(
-                        attr,
-                        "The form of the #[event] attribute is invalid. \
-                        It should be: #[event(name = \"value\", name2 = \"value2\", ...)].",
-                    ));
-                }
-                Err(e) => {
-                    errors.push(Error::new(
-                        attr.span(),
-                        format!("Unrecognized attribute: {}", e),
-                    ));
-                }
+                Ok(())
+            }) {
+                errors.push(e);
             }
         } else {
             errors.push(Error::new_spanned(
@@ -1398,7 +1356,7 @@ fn parse_event_attributes(
     }
 
     if !event_already_has_doc && enable_default_event_doc {
-        let method_doc = format!("Writes the `{}` event to the ETW log stream.", method_ident);
+        let method_doc = format!("Writes the `{method_ident}` event to the ETW log stream.");
         method_attrs.push(parse_quote!( #![doc = #method_doc] ));
     }
 
@@ -1425,10 +1383,7 @@ const IDENT_SEPARATOR: &str = "__";
 
 /// Builds a new identifier, based on an existing identifier.
 fn ident_suffix(ident: &Ident, suffix: &str) -> Ident {
-    Ident::new(
-        &format!("{}{}{}", ident, IDENT_SEPARATOR, suffix),
-        ident.span(),
-    )
+    Ident::new(&format!("{ident}{IDENT_SEPARATOR}{suffix}"), ident.span())
 }
 
 const ETW_PROVIDER_TRAIT_TYPE_GROUP: u8 = 1;
