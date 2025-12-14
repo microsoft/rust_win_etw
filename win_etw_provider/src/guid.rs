@@ -137,8 +137,8 @@ impl TryFrom<&str> for GUID {
 #[cfg(feature = "uuid")]
 #[cfg(test)]
 mod test {
-    use core::convert::TryFrom;
     use crate::guid::GUID;
+    use core::convert::TryFrom;
     use uuid::Uuid;
     #[test]
     fn test_uuid() {
