@@ -1,3 +1,4 @@
+use core::convert::TryFrom;
 use zerocopy::{FromBytes, IntoBytes};
 
 /// Initializes a `GUID` from literal values.
