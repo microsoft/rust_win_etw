@@ -236,7 +236,7 @@ impl Visit for ActivityIdVisitor {
         if field.name() == "activity_id" {
             // Parse the GUID debug string
             let debug_str = format!("{:?}", value);
-            self.value = GUID::from(debug_str.as_str()).into();
+            self.value = GUID::try_from(debug_str.as_str()).ok();
         }
     }
 }

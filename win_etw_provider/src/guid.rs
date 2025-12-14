@@ -123,11 +123,13 @@ impl From<uuid::Uuid> for GUID {
 }
 
 #[cfg(feature = "uuid")]
-impl From<&str> for GUID {
-    fn from(value: &str) -> Self {
+impl TryFrom<&str> for GUID {
+    type Error = uuid::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         use uuid::Uuid;
-        let uuid = Uuid::parse_str(value).expect("Invalid string");
-        uuid.into()
+        let uuid = Uuid::parse_str(value)?;
+        Ok(uuid.into())
     }
 }
 
@@ -147,9 +149,9 @@ mod test {
     }
 
     #[test]
-    fn test_from_str() {
+    fn test_try_from_str() {
         let guid_str = "1a1a1a1a-2b2b-3c3c-4142-434546474849";
-        let guid: GUID = GUID::from(guid_str);
+        let guid: GUID = GUID::try_from(guid_str).unwrap();
         assert_eq!(guid.data1, 0x1a1a_1a1a);
         assert_eq!(guid.data2, 0x2b2b);
         assert_eq!(guid.data3, 0x3c3c);
