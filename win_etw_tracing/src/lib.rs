@@ -227,6 +227,28 @@ impl ActivityId {
     }
 }
 
+struct ActivityIdVisitor {
+    value: Option<GUID>,
+}
+
+impl Visit for ActivityIdVisitor {
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "activity_id" {
+            // Parse the GUID debug string
+            let debug_str = format!("{:?}", value);
+            self.value = GUID::try_from(debug_str.as_str()).ok();
+        }
+    }
+}
+
+/// Extracts the "activity_id" field from span attributes.
+/// Returns None if the field is missing.
+fn extract_activity_id_attr(attrs: &Attributes<'_>) -> Option<GUID> {
+    let mut visitor = ActivityIdVisitor { value: None };
+    attrs.record(&mut visitor);
+    visitor.value
+}
+
 const WINEVENT_OPCODE_INFO: u8 = 0;
 const WINEVENT_OPCODE_START: u8 = 1;
 const WINEVENT_OPCODE_STOP: u8 = 2;
@@ -236,7 +258,13 @@ where
     S: for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        let activity_id = ActivityId::from_current_thread().unwrap_or_default();
+        // Extract "activity_id" from attributes
+        let activity_id = extract_activity_id_attr(attrs)
+            .map(ActivityId)
+            .unwrap_or_else(|| {
+                // If not provided, get the current thread's activity ID
+                ActivityId::from_current_thread().unwrap_or_default()
+            });
 
         let related_activity_id = {
             if attrs.is_contextual() {

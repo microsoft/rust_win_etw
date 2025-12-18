@@ -1,3 +1,4 @@
+use core::convert::TryFrom;
 use zerocopy::{FromBytes, IntoBytes};
 
 /// Initializes a `GUID` from literal values.
@@ -123,14 +124,36 @@ impl From<uuid::Uuid> for GUID {
 }
 
 #[cfg(feature = "uuid")]
+impl TryFrom<&str> for GUID {
+    type Error = uuid::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        use uuid::Uuid;
+        let uuid = Uuid::parse_str(value)?;
+        Ok(uuid.into())
+    }
+}
+
+#[cfg(feature = "uuid")]
 #[cfg(test)]
 mod test {
     use crate::guid::GUID;
+    use core::convert::TryFrom;
     use uuid::Uuid;
     #[test]
     fn test_uuid() {
         let uuid = Uuid::parse_str("1a1a1a1a-2b2b-3c3c-4142-434546474849").unwrap();
         let guid: GUID = uuid.into();
+        assert_eq!(guid.data1, 0x1a1a_1a1a);
+        assert_eq!(guid.data2, 0x2b2b);
+        assert_eq!(guid.data3, 0x3c3c);
+        assert_eq!(guid.data4, [0x41, 0x42, 0x43, 0x45, 0x46, 0x47, 0x48, 0x49]);
+    }
+
+    #[test]
+    fn test_try_from_str() {
+        let guid_str = "1a1a1a1a-2b2b-3c3c-4142-434546474849";
+        let guid: GUID = GUID::try_from(guid_str).unwrap();
         assert_eq!(guid.data1, 0x1a1a_1a1a);
         assert_eq!(guid.data2, 0x2b2b);
         assert_eq!(guid.data3, 0x3c3c);
