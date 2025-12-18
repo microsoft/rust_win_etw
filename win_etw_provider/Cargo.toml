@@ -1,6 +1,6 @@
 [package]
 name = "win_etw_provider"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["Arlie Davis <ardavis@microsoft.com>"]
 edition = "2018"
 description = "Enables apps to report events to Event Tracing for Windows (ETW)."
