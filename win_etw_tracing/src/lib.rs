@@ -81,7 +81,7 @@ impl TracelogSubscriber {
     /// layer. They can be set at the time of layer creation, or by using
     /// [`tracing_subscriber::reload`] to dynamically reconfigure a registered
     /// layer. Note that if the subscriber is registered as the [global
-    /// default](tracing::dispatcher#setting-the-default-subscriber), thesee
+    /// default](tracing::dispatcher#setting-the-default-subscriber), these
     /// fields will be global to the entire process.
     ///
     /// # Example
