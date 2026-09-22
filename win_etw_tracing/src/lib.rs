@@ -274,10 +274,7 @@ where
             }
             .and_then(|id| {
                 ctx.span(&id)
-                    .unwrap()
-                    .extensions()
-                    .get::<ActivityId>()
-                    .cloned()
+                    .and_then(|span| span.extensions().get::<ActivityId>().cloned())
             })
             .map(|x| x.0)
         };
@@ -565,6 +562,25 @@ mod tests {
                 tracing::info!("test");
                 span.record("later", true);
                 span.record("later", "wait no it's a string now");
+            });
+        });
+    }
+
+    #[test]
+    fn filtered_parent_span_with_unfiltered_sibling_layer() {
+        let layer = TracelogSubscriber::new(PROVIDER_GUID.clone(), PROVIDER_NAME)
+            .unwrap()
+            .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                metadata.target() != "filtered"
+            }));
+        let _x = Registry::default()
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::sink))
+            .with(layer)
+            .set_default();
+
+        tracing::info_span!(target: "filtered", "filtered_parent").in_scope(|| {
+            tracing::info_span!(target: "included", "included_child").in_scope(|| {
+                tracing::info!(target: "included", "child event");
             });
         });
     }

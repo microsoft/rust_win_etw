@@ -13,7 +13,7 @@ jobs:
   test:
     strategy:
       matrix:
-        rust: [1.77.0, stable]
+        rust: [1.85.0, stable]
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -32,4 +32,3 @@ jobs:
     - name: fmt
       if: matrix.rust == 'stable'
       run: cargo fmt --all -- --check
-
